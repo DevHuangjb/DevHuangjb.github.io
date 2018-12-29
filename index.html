@@ -352,7 +352,20 @@
       
         
           
-            <p>SDWebImage架构图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImageArchitecture.png" alt="架构图"></p>
+            <blockquote>
+<p>要想成为优秀，要先模仿优秀，书法如此，代码也如此。<br>我们总可以在阅读优秀源码有所收获，你会发现，原来，代码可以这么写！</p>
+</blockquote>
+<p>接触iOS开发的同学都接触过这个框架。SDWebImage作者精简的接口设计极大的简化了我们开发中有关图片的需求场景。正因为这样，不少开发者对SDWebImage仅仅停留在使用上面，而没有去剖析框架。</p>
+<p>我们先来看下SDWebImage架构图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImageArchitecture.png" alt="架构图"><br>从框架图可以看出主要包括：</p>
+<ul>
+<li>核心类: SDWebImageManager</li>
+<li>图片下载：SDWebImageDownloader</li>
+<li>图片缓存：SdImageCache</li>
+<li>UIKit拓展分类：UIView，UIImageView，UIButton等分类</li>
+<li>图片编解码类：SDWebImageCodersManager</li>
+</ul>
+<p>从功能上来看，各个类的职责都很清晰。</p>
+<p>下面来看一下SDWebImage工作的时序图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImage_sequence.png" alt="时序图"></p>
 
           
         

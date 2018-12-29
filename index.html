@@ -363,9 +363,11 @@
 <li>图片缓存：SdImageCache</li>
 <li>UIKit拓展分类：UIView，UIImageView，UIButton等分类</li>
 <li>图片编解码类：SDWebImageCodersManager</li>
+<li>其他辅助类</li>
 </ul>
 <p>从功能上来看，各个类的职责都很清晰。</p>
-<p>下面来看一下SDWebImage工作的时序图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImage_sequence.png" alt="时序图"></p>
+<p>下面来看一下SDWebImage工作的时序图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImage_sequence.png" alt="时序图"><br>主业务线：UIImageView通过调用UIView:sd_internalSetImageWithURL；然后调用SDWebImageManager:loadImageWithUrl；SDWebImageManager去查询SdImageCache是否有图片，如果有直接返回图片，如果没有调用SDWebImageDownloader下载图片；SDWebImageDownloader下载完图片会调用SDImageCache对图片进行缓存。</p>
+<p>具体的细节后面将会在各个模块的专题中解析。</p>
 
           
         

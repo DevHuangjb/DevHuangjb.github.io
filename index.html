@@ -259,6 +259,176 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/01/21/SDWebImage解析之SDImageCache/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="DevHuangjb">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="黄锦标的博客">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/01/21/SDWebImage解析之SDImageCache/" itemprop="url">SDWebImage解析之SDImageCache</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-01-21T09:40:33+08:00">
+                2019-01-21
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/iOS/" itemprop="url" rel="index">
+                    <span itemprop="name">iOS</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p>我们知道移动端有三级缓存：远程的服务器，还有本地的内存缓存，硬盘缓存。SDImageCache的存在就是为了解决图片的本地缓存。SDImageCache是SDWebImage一个很重要的部分。为SDWebImage提供了以下功能：</p>
+<ul>
+<li><p>内存缓存，基于NSCache</p>
+</li>
+<li><p>异步的硬盘缓存，不会阻塞主线程</p>
+</li>
+<li><p>提供同步和异步两种方式来查询是否有缓存图片</p>
+</li>
+<li><p>提供同步和异步来获取缓存的图片</p>
+</li>
+<li><p>删除缓存图片</p>
+</li>
+</ul>
+<h4 id="SDImageCacheConfig"><a href="#SDImageCacheConfig" class="headerlink" title="SDImageCacheConfig"></a>SDImageCacheConfig</h4><p>我们先来看看SDImageCacheConfig，SDImageCacheConfig是用来图片缓存的配置信息。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">//SDImageCacheConfigExpireType定义的是以什么方式来计算图片的过期时间</span><br><span class="line">typedef NS_ENUM(NSUInteger, SDImageCacheConfigExpireType) &#123;</span><br><span class="line">    //图片最近访问的时间</span><br><span class="line">    SDImageCacheConfigExpireTypeAccessDate,</span><br><span class="line">    //默认：图片最近修改的时间</span><br><span class="line">    SDImageCacheConfigExpireTypeModificationDate</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<p>SDImageCacheConfig的配置属性和注释如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">@interface SDImageCacheConfig : NSObject</span><br><span class="line"></span><br><span class="line">//预解码图片，默认YES；</span><br><span class="line">//预解码图片可以提升性能，但会消耗太多的内存</span><br><span class="line">@property (assign, nonatomic) BOOL shouldDecompressImages;</span><br><span class="line"></span><br><span class="line">//取消iCloud备份</span><br><span class="line">@property (assign, nonatomic) BOOL shouldDisableiCloud;</span><br><span class="line"></span><br><span class="line">//是否禁用内存缓存</span><br><span class="line">@property (assign, nonatomic) BOOL shouldCacheImagesInMemory;</span><br><span class="line"></span><br><span class="line">//开启SDMemoryCache内部维护的一张图片弱引用表</span><br><span class="line">//好处：当收到内存警告，SDMemoryCache会移除图片的缓存,但是有些图片此时已经被一些诸如UIImageView强引用这，使用这个弱引用表就能访问到图片，避免后面再去query硬盘缓存</span><br><span class="line">@property (assign, nonatomic) BOOL shouldUseWeakMemoryCache;</span><br><span class="line"></span><br><span class="line">//硬盘图片读取的配置选项，默认是0</span><br><span class="line">@property (assign, nonatomic) NSDataReadingOptions diskCacheReadingOptions;</span><br><span class="line"></span><br><span class="line">//把图片存入硬盘的配置选项，默认NSDataWritingAtomic原子操作</span><br><span class="line">@property (assign, nonatomic) NSDataWritingOptions diskCacheWritingOptions;</span><br><span class="line"></span><br><span class="line">//图片最大的缓存时间，默认1星期</span><br><span class="line">@property (assign, nonatomic) NSInteger maxCacheAge;</span><br><span class="line"></span><br><span class="line">//最大的缓存大小，如果maxCacheSize&gt;0,在清除硬盘缓存的时候会先把缓存时间操作maxCacheAge的图片清除掉，然后再清除图片到总缓存大小在maxCacheSize * 0.5以下</span><br><span class="line">@property (assign, nonatomic) NSUInteger maxCacheSize;</span><br><span class="line"></span><br><span class="line">//硬盘缓存图片过期时间的计算方式，默认是最近修改的时间</span><br><span class="line">@property (assign, nonatomic) SDImageCacheConfigExpireType diskCacheExpireType;</span><br><span class="line"></span><br><span class="line">@end</span><br></pre></td></tr></table></figure>
+<p>SDImageCacheConfig的初始化函数：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week</span><br><span class="line">- (instancetype)init &#123;</span><br><span class="line">    if (self = [super init]) &#123;</span><br><span class="line">        _shouldDecompressImages = YES;</span><br><span class="line">        _shouldDisableiCloud = YES;</span><br><span class="line">        _shouldCacheImagesInMemory = YES;</span><br><span class="line">        _shouldUseWeakMemoryCache = YES;</span><br><span class="line">        _diskCacheReadingOptions = 0;</span><br><span class="line">        _diskCacheWritingOptions = NSDataWritingAtomic;</span><br><span class="line">        //默认一周的缓存时间</span><br><span class="line">        _maxCacheAge = kDefaultCacheMaxCacheAge;</span><br><span class="line">        _maxCacheSize = 0;</span><br><span class="line">        _diskCacheExpireType = SDImageCacheConfigExpireTypeModificationDate;</span><br><span class="line">    &#125;</span><br><span class="line">    return self;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="SDImageCache"><a href="#SDImageCache" class="headerlink" title="SDImageCache"></a>SDImageCache</h4><p>SDImageCache使用SDMemoryCache(继承NSCache)来实现内存缓存，使用NSFileManager来进行图片的硬盘存取。</p>
+<h5 id="SDMemoryCache-h"><a href="#SDMemoryCache-h" class="headerlink" title="SDMemoryCache.h"></a>SDMemoryCache.h</h5><p>下面我们先来阅读下SDMemoryCache.h文件</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">//用来表示图片的缓存类型</span><br><span class="line">typedef NS_ENUM(NSInteger, SDImageCacheType) &#123;</span><br><span class="line">    //图片来自服务器</span><br><span class="line">    SDImageCacheTypeNone,</span><br><span class="line">    //图片来自硬盘缓存</span><br><span class="line">    SDImageCacheTypeDisk,</span><br><span class="line">    //图片来自内存缓存</span><br><span class="line">    SDImageCacheTypeMemory</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">//缓存图片的方式</span><br><span class="line">typedef NS_OPTIONS(NSUInteger, SDImageCacheOptions) &#123;</span><br><span class="line">    //当内存有图片，仍然查询硬盘缓存</span><br><span class="line">    SDImageCacheQueryDataWhenInMemory = 1 &lt;&lt; 0,</span><br><span class="line">    //同步的方式来获取硬盘缓存(默认异步)</span><br><span class="line">    SDImageCacheQueryDiskSync = 1 &lt;&lt; 1,</span><br><span class="line">    //缩小大图(&gt;60M)</span><br><span class="line">    SDImageCacheScaleDownLargeImages = 1 &lt;&lt; 2</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br></pre></td><td class="code"><pre><span class="line">@interface SDImageCache : NSObject</span><br><span class="line"></span><br><span class="line">@property (nonatomic, nonnull, readonly) SDImageCacheConfig *config;</span><br><span class="line"></span><br><span class="line">//内存缓存的最大值(图片像素)</span><br><span class="line">@property (assign, nonatomic) NSUInteger maxMemoryCost;</span><br><span class="line"></span><br><span class="line">//内存缓存的最大数量(图片数量)</span><br><span class="line">@property (assign, nonatomic) NSUInteger maxMemoryCountLimit;</span><br><span class="line"></span><br><span class="line">//暴露的单例对象</span><br><span class="line">+ (nonnull instancetype)sharedImageCache;</span><br><span class="line"></span><br><span class="line">//指定命名空间，图片存到对应的沙盒目录中</span><br><span class="line">- (nonnull instancetype)initWithNamespace:(nonnull NSString *)ns;</span><br><span class="line"></span><br><span class="line">//指定命名空间和沙盒目录</span><br><span class="line">- (nonnull instancetype)initWithNamespace:(nonnull NSString *)ns</span><br><span class="line">                       diskCacheDirectory:(nonnull NSString *)directory;</span><br><span class="line"></span><br><span class="line">#pragma mark - Cache paths</span><br><span class="line">//获取磁盘缓存路径</span><br><span class="line">- (nullable NSString *)makeDiskCachePath:(nonnull NSString*)fullNamespace;</span><br><span class="line"></span><br><span class="line">//添加只读路径</span><br><span class="line">- (void)addReadOnlyCachePath:(nonnull NSString *)path;</span><br><span class="line"></span><br><span class="line">#pragma mark - Store Ops</span><br><span class="line"></span><br><span class="line">//异步的方式存储图片到内存和硬盘</span><br><span class="line">- (void)storeImage:(nullable UIImage *)image</span><br><span class="line">            forKey:(nullable NSString *)key</span><br><span class="line">        completion:(nullable SDWebImageNoParamsBlock)completionBlock;</span><br><span class="line"></span><br><span class="line">//异步的方式存储图片到内存和硬盘(可选，toDisk为YES才会存入硬盘)</span><br><span class="line">- (void)storeImage:(nullable UIImage *)image</span><br><span class="line">            forKey:(nullable NSString *)key</span><br><span class="line">            toDisk:(BOOL)toDisk</span><br><span class="line">        completion:(nullable SDWebImageNoParamsBlock)completionBlock;</span><br><span class="line"></span><br><span class="line">//当我们把图片存入硬盘时，需要把图片压缩为二进制格式才能存。当我们下载完图片后，得到的是图片的二进制数据，这个方法提供了imageData的入口，来避免对图片额外的压缩消耗</span><br><span class="line">- (void)storeImage:(nullable UIImage *)image</span><br><span class="line">         imageData:(nullable NSData *)imageData</span><br><span class="line">            forKey:(nullable NSString *)key</span><br><span class="line">            toDisk:(BOOL)toDisk</span><br><span class="line">        completion:(nullable SDWebImageNoParamsBlock)completionBlock;</span><br><span class="line"></span><br><span class="line">//同步的方式把图片的二进制数据存入硬盘</span><br><span class="line">- (void)storeImageDataToDisk:(nullable NSData *)imageData forKey:(nullable NSString *)key;</span><br><span class="line"></span><br><span class="line">#pragma mark - Query and Retrieve Ops</span><br><span class="line"></span><br><span class="line">//异步的方式查询硬盘中是否有key对应的缓存图片</span><br><span class="line">- (void)diskImageExistsWithKey:(nullable NSString *)key completion:(nullable SDWebImageCheckCacheCompletionBlock)completionBlock;</span><br><span class="line"></span><br><span class="line">//同步的方式查询硬盘中是否有key对应的缓存图片</span><br><span class="line">- (BOOL)diskImageDataExistsWithKey:(nullable NSString *)key;</span><br><span class="line"></span><br><span class="line">//同步的方式获取硬盘缓存的图片二进制数据</span><br><span class="line">- (nullable NSData *)diskImageDataForKey:(nullable NSString *)key;</span><br><span class="line"></span><br><span class="line">//异步的方式来获取硬盘缓存的图片</span><br><span class="line">- (nullable NSOperation *)queryCacheOperationForKey:(nullable NSString *)key done:(nullable SDCacheQueryCompletedBlock)doneBlock;</span><br><span class="line"></span><br><span class="line">//异步的方式来获取硬盘缓存的图片</span><br><span class="line">- (nullable NSOperation *)queryCacheOperationForKey:(nullable NSString *)key options:(SDImageCacheOptions)options done:(nullable SDCacheQueryCompletedBlock)doneBlock;</span><br><span class="line"></span><br><span class="line">//同步的方式来获取内存缓存的图片</span><br><span class="line">- (nullable UIImage *)imageFromMemoryCacheForKey:(nullable NSString *)key;</span><br><span class="line"></span><br><span class="line">/同步的方式获取硬盘缓存的图片</span><br><span class="line">- (nullable UIImage *)imageFromDiskCacheForKey:(nullable NSString *)key;</span><br><span class="line"></span><br><span class="line">//同步的方式，先查询内存中有没有缓存的图片，如果没有再查询硬盘中有没有缓存的图片</span><br><span class="line">- (nullable UIImage *)imageFromCacheForKey:(nullable NSString *)key;</span><br><span class="line"></span><br><span class="line">#pragma mark - Remove Ops</span><br><span class="line"></span><br><span class="line">//异步的方式移除缓存中的图片，包括内存和硬盘</span><br><span class="line">- (void)removeImageForKey:(nullable NSString *)key withCompletion:(nullable SDWebImageNoParamsBlock)completion;</span><br><span class="line"></span><br><span class="line">//异步的方式移除缓存中的图片，包括内存和硬盘(可选，fromDisk为YES移除硬盘缓存)</span><br><span class="line">- (void)removeImageForKey:(nullable NSString *)key fromDisk:(BOOL)fromDisk withCompletion:(nullable SDWebImageNoParamsBlock)completion;</span><br><span class="line"></span><br><span class="line">#pragma mark - Cache clean Ops</span><br><span class="line"></span><br><span class="line">//清除内存缓存</span><br><span class="line">- (void)clearMemory;</span><br><span class="line"></span><br><span class="line">//异步方式清除硬盘缓存</span><br><span class="line">- (void)clearDiskOnCompletion:(nullable SDWebImageNoParamsBlock)completion;</span><br><span class="line"></span><br><span class="line">//异步方式清除过期的图片</span><br><span class="line">- (void)deleteOldFilesWithCompletionBlock:(nullable SDWebImageNoParamsBlock)completionBlock;</span><br><span class="line"></span><br><span class="line">#pragma mark - Cache Info</span><br><span class="line"></span><br><span class="line">//同步方式计算缓存目录的大小</span><br><span class="line">- (NSUInteger)getSize;</span><br><span class="line"></span><br><span class="line">//同步方式计算缓存的图片数量</span><br><span class="line">- (NSUInteger)getDiskCount;</span><br><span class="line"></span><br><span class="line">//异步的方式获取缓存图片数量和大小</span><br><span class="line">- (void)calculateSizeWithCompletionBlock:(nullable SDWebImageCalculateSizeBlock)completionBlock;</span><br><span class="line"></span><br><span class="line">#pragma mark - Cache Paths</span><br><span class="line"></span><br><span class="line">//指定key，获取图片的缓存路径</span><br><span class="line">- (nullable NSString *)cachePathForKey:(nullable NSString *)key inPath:(nonnull NSString *)path;</span><br><span class="line"></span><br><span class="line">//指定key，获取图片默认的缓存路径</span><br><span class="line">- (nullable NSString *)defaultCachePathForKey:(nullable NSString *)key;</span><br><span class="line"></span><br><span class="line">@end</span><br></pre></td></tr></table></figure>
+<h5 id="SDImageCache-m"><a href="#SDImageCache-m" class="headerlink" title="SDImageCache.m"></a>SDImageCache.m</h5><p>SDMemoryCache继承自NSCache。NSCache可以设置totalCostLimit，来限制缓存的总成本消耗，所以我们再添加缓存的时候需要</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">- (void)setObject:(ObjectType)obj forKey:(KeyType)key cost:(NSUInteger)g;</span><br></pre></td></tr></table></figure>
+<p>通过cost来指定缓存对象消耗的成本。</p>
+<h6 id="SDImageCache如何计算图片消耗的成本？"><a href="#SDImageCache如何计算图片消耗的成本？" class="headerlink" title="SDImageCache如何计算图片消耗的成本？"></a>SDImageCache如何计算图片消耗的成本？</h6><p>SDImageCache把图片的像素点来计算图片的消耗成本</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">FOUNDATION_STATIC_INLINE NSUInteger SDCacheCostForImage(UIImage *image) &#123;</span><br><span class="line">#if SD_MAC</span><br><span class="line">    return image.size.height * image.size.width;</span><br><span class="line">#elif SD_UIKIT || SD_WATCH</span><br><span class="line">    return image.size.height * image.size.width * image.scale * image.scale;</span><br><span class="line">#endif</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/01/06/iOS多线程之：GCD/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
@@ -1362,7 +1532,7 @@
               
                 <a href="/archives">
               
-                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-count">7</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>

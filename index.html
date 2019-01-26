@@ -259,6 +259,228 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/01/25/iOS底层原理：NSDictionary原理/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="DevHuangjb">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="黄锦标的博客">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/01/25/iOS底层原理：NSDictionary原理/" itemprop="url">iOS底层原理：NSDictionary原理</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-01-25T22:55:31+08:00">
+                2019-01-25
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/iOS/" itemprop="url" rel="index">
+                    <span itemprop="name">iOS</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <blockquote>
+<p>NSDictionary（字典）是使用 hash表来实现key和value之间的映射和存储的。</p>
+</blockquote>
+<h3 id="关于hash表"><a href="#关于hash表" class="headerlink" title="关于hash表"></a>关于hash表</h3><p>想想一下，我们有一个数组，数组长度是100个，现在的需求是：给出这个数组是否包含一个对象obj？</p>
+<p>如果这是个无序的数组，那么我们只能用遍历的方法来查找是否包含这个对象obj了。这是我们的时间复杂度就是O(n)。</p>
+<p>这种查找效率是很低的，所以hash表应运而生。</p>
+<p>hash表其实也是一个数组，区别数组的地方是它会建立 <strong><em>存储的值</em></strong> 到 <strong><em>存储的下标</em></strong> 索引的一个映射，也就是散列函数。</p>
+<p>我们来举一个通俗易懂的例子：</p>
+<p>现在我们有个hash表，表长度count = 16，现在我们依次把3，12，24，30依次存入hash表中。</p>
+<p>首先我们来约定一个简单的映射关系：存储的索引下表(index) = 存储值(value) % hash表长度(count)；</p>
+<p><strong><em>[注：实际的映射并不是简单的存储值，而是经过计算得到的hash值]</em></strong></p>
+<p>算下来hash表的存储分布是这样的：hash[3] = 3、hash[12] = 12、hash[8] = 24、hash[14] = 30</p>
+<p>还是一样的需求，当我们给出24的时候，求出hash表中是否存有24？</p>
+<p>此时，按照原先约定的映射关系：index = 24 % 16 = 8，然后我们在hash[8]查询等于24。这样，通过数组需要O(n)的时间复杂度，通过hash表只需要O(1)；</p>
+<h4 id="散列碰撞"><a href="#散列碰撞" class="headerlink" title="散列碰撞"></a>散列碰撞</h4><p>上面提到的hash表在存入3，12，24，30后，如果要面临存入19呢？</p>
+<p>此时index = 19 % 16 = 3，而之前hash[3] 已经存入了3这个值了！这种情况就是发送了散列碰撞。</p>
+<p>此时，我们可以改进一下我们的hash表，让它存储的是一个链表。这样发送散列碰撞的元素就可以以链表的形式共处在hash表的某一个下标位置了。</p>
+<p><img src="/2019/01/25/iOS底层原理：NSDictionary原理/hash存储.jpg" alt="hash存储"></p>
+<p>所以，只要发生了散列碰撞，我们查找的时间复杂度就不能像O(1)这么小了，因为还要考虑链表的查找时间复杂度O(n)。</p>
+<h4 id="负载因子、自动扩容"><a href="#负载因子、自动扩容" class="headerlink" title="负载因子、自动扩容"></a>负载因子、自动扩容</h4><p>哈希表还有一个重要的属性: 负载因子(load factor)，它用来衡量哈希表的 <strong>空/满</strong> 程度</p>
+<blockquote>
+<p>负载因子 = 总键值对数 / 箱子个数</p>
+</blockquote>
+<p>当存储的元素个数越来越多，在hash表长度不变的前提下，发生散列碰撞的概率就会变大，查找性能就变低了。所以当负载因子达到一定的值，hash表会进行自动扩容。</p>
+<p>哈希表在自动扩容时，一般会扩容出一倍的长度。元素的hash值不变，对哈希表长度取模的值也会改变，所以元素的存储位置也要相对应重新计算，这个过程也称为重哈希(rehash)。</p>
+<p>哈希表的扩容并不总是能够有效解决负载因子过大而引起的查询性能变低的问题。假设所有 key 的哈希值都一样，那么即使扩容以后他们的位置也不会变化。虽然负载因子会降低，但实际存储在每个箱子中的链表长度并不发生改变，因此也就不能提高哈希表的查询性能。所以，设计一个合理有效的散列函数显得相当的有必要，这个合理有效应该体现在映射之后各元素均匀的分布在hash表当中。</p>
+<h3 id="说回NSDictionary"><a href="#说回NSDictionary" class="headerlink" title="说回NSDictionary"></a>说回NSDictionary</h3><p>字典是开发中最常见的集合了。当我们调用</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">- (void)setObject:(ObjectType)anObject forKey:(KeyType &lt;NSCopying&gt;)aKey;</span><br></pre></td></tr></table></figure>
+<p>我们来探究下字典存储键值对的过程，有两个方法对hash存储起着关键的影响：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">- (NSUInteger)hash;</span><br><span class="line">- (BOOL)isEqual:(id)object;</span><br></pre></td></tr></table></figure>
+<p>demo1:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line">@interface KeyType : NSObject&lt;NSCopying&gt;</span><br><span class="line"></span><br><span class="line">@property (nonatomic, copy) NSString *keyName;</span><br><span class="line"></span><br><span class="line">- (instancetype)initWithKeyName:(NSString *)keyName;</span><br><span class="line"></span><br><span class="line">@end</span><br><span class="line"></span><br><span class="line">@implementation KeyType</span><br><span class="line"></span><br><span class="line">- (instancetype)initWithKeyName:(NSString *)keyName &#123;</span><br><span class="line">    if (self = [super init]) &#123;</span><br><span class="line">       _keyName  = keyName;</span><br><span class="line">    &#125;</span><br><span class="line">    return self;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">//直接电影父类hash方法</span><br><span class="line">- (NSUInteger)hash &#123;</span><br><span class="line">    NSLog(@&quot;hash func&quot;);</span><br><span class="line">    return [super hash];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">//直接调用父类isEqual方法</span><br><span class="line">- (BOOL)isEqual:(id)object &#123;</span><br><span class="line">    NSLog(@&quot;isEqual func&quot;);</span><br><span class="line">    return [super isEqual:object];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (nonnull id)copyWithZone:(nullable NSZone *)zone &#123;</span><br><span class="line">    NSLog(@&quot;copy funcr&quot;);</span><br><span class="line">    KeyType *key = [[KeyType alloc] initWithKeyName:self.keyName];</span><br><span class="line">    return key;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">@end</span><br><span class="line"></span><br><span class="line">@implementation ViewController</span><br><span class="line"></span><br><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    </span><br><span class="line">    NSMutableDictionary *dic = [NSMutableDictionary new];</span><br><span class="line">    KeyType *key1 = [[KeyType alloc] initWithKeyName:@&quot;key1&quot;];</span><br><span class="line">    </span><br><span class="line">    NSLog(@&quot;for value&quot;);</span><br><span class="line">    NSLog(@&quot;%@&quot;,[key1 valueForKey:@&quot;retainCount&quot;]);</span><br><span class="line">    [dic setObject:key1 forKey:@&quot;valueKey&quot;];</span><br><span class="line">    NSLog(@&quot;%@&quot;,[key1 valueForKey:@&quot;retainCount&quot;]);</span><br><span class="line">    </span><br><span class="line">    NSLog(@&quot;for key&quot;);</span><br><span class="line">    [dic setObject:@&quot;object1&quot; forKey:key1];</span><br><span class="line">    NSLog(@&quot;%@&quot;,[key1 valueForKey:@&quot;retainCount&quot;]);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">@end</span><br><span class="line"></span><br><span class="line">控制台打印：</span><br><span class="line">for value</span><br><span class="line">1</span><br><span class="line">2</span><br><span class="line">for key</span><br><span class="line">hash func</span><br><span class="line">copy func</span><br><span class="line">2</span><br></pre></td></tr></table></figure>
+<p>分析：</p>
+<ul>
+<li>key1作为键值对的value时，不会去计算hash值，dictionary会对key1进行一次强引用。</li>
+<li>key1作为键值对的key时，会先去计算hash值，然后[key1 copy]拷贝一份key1和value存储在字典中</li>
+</ul>
+<p>下面来看第二个测试用例：Demo2</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    </span><br><span class="line">    NSMutableDictionary *dic = [NSMutableDictionary new];</span><br><span class="line">    KeyType *key1 = [[KeyType alloc] initWithKeyName:@&quot;key1&quot;];</span><br><span class="line">    [dic setObject:@&quot;object1&quot; forKey:key1];</span><br><span class="line">    NSLog(@&quot;%ld&quot;,dic.count);</span><br><span class="line">    NSLog(@&quot;%@&quot;,dic[key1]);</span><br><span class="line">&#125;</span><br><span class="line">控制台打印：</span><br><span class="line">hash func</span><br><span class="line">copy func</span><br><span class="line">1</span><br><span class="line">hash func</span><br><span class="line">isEqual func</span><br><span class="line">(null)</span><br></pre></td></tr></table></figure>
+<p>dic.count = 1，说明{key1 : @”object1”}已经存储进去了。然而通过这个key去获取竟然返回null？</p>
+<p>从打印也可以看出来，现在isEqual函数开始被调用了。</p>
+<p>分析：</p>
+<ul>
+<li><p>dic[key1]作为key去字典中查询value时，也会先计算hash值，来确定在hash表中的存储下标位置</p>
+</li>
+<li><p>因为存储散列碰撞的可能，所以找到下标后，会调用isEqual方法来匹配链表上面的各个元素之间的key值。当isEqual:返回YES时，会把对应的value返回。</p>
+</li>
+<li><p>调用父类的isEqual，NSObject的- (BOOL)isEqual:(id)object比较的是内存地址</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">- (BOOL)isEqual:(id)object &#123;</span><br><span class="line">    return self == object;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>根据demo1的分析，key1作为键值对的key时，会拷贝一份存储到字典中。既然是拷贝，那当然和原始对象不是同一个对象，所以- (BOOL)isEqual:(id)object返回NO。所以我们在链表的查询中找不到对应的key，最终返回null</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">//我们可以强制重写KeyType的isEqual:返回YES，demo2的返回值就不是null了</span><br><span class="line">- (BOOL)isEqual:(id)object &#123;</span><br><span class="line">    return YES;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+<p>由此可见，当一个类需要作为字典的key，重写hash和isEqual:方法显得很有必要。</p>
+<h3 id="重写hash方法"><a href="#重写hash方法" class="headerlink" title="重写hash方法"></a>重写hash方法</h3><h5 id="为什么要重写hash方法？"><a href="#为什么要重写hash方法？" class="headerlink" title="为什么要重写hash方法？"></a>为什么要重写hash方法？</h5><p>我们先来看看NSObject的hash方法返回什么：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">KeyType *key1 = [[KeyType alloc] initWithKeyName:@&quot;key1&quot;];</span><br><span class="line">NSLog(@&quot;%p&quot;,key1);</span><br><span class="line">NSLog(@&quot;%lx&quot;,[key1 hash]);</span><br><span class="line">控制台打印：</span><br><span class="line">0x600000640610</span><br><span class="line">600000640610</span><br></pre></td></tr></table></figure>
+<p>由此可见，NSObject是把对象的内存地址作为hash值返回。</p>
+<p>以内存地址作为hash可以保证唯一性，但是这样好不好？</p>
+<p>这样不好！</p>
+<p>来看下这个场景：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line">@interface KeyType : NSObject&lt;NSCopying&gt;</span><br><span class="line"></span><br><span class="line">@property (nonatomic, copy) NSString *keyName;</span><br><span class="line"></span><br><span class="line">- (instancetype)initWithKeyName:(NSString *)keyName;</span><br><span class="line"></span><br><span class="line">@end</span><br><span class="line"></span><br><span class="line">@implementation KeyType</span><br><span class="line"></span><br><span class="line">- (instancetype)initWithKeyName:(NSString *)keyName &#123;</span><br><span class="line">    if (self = [super init]) &#123;</span><br><span class="line">       _keyName  = keyName;</span><br><span class="line">    &#125;</span><br><span class="line">    return self;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (NSUInteger)hash &#123;</span><br><span class="line">    return [super hash];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">//强制返回YES</span><br><span class="line">- (BOOL)isEqual:(id)object &#123;</span><br><span class="line">    return YES;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (nonnull id)copyWithZone:(nullable NSZone *)zone &#123;</span><br><span class="line">    KeyType *key = [[KeyType alloc] initWithKeyName:self.keyName];</span><br><span class="line">    return key;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">@end</span><br><span class="line"></span><br><span class="line">@implementation ViewController</span><br><span class="line"></span><br><span class="line">- (void)viewDidLoad &#123;</span><br><span class="line">    [super viewDidLoad];</span><br><span class="line">    </span><br><span class="line">    NSMutableDictionary *dic = [NSMutableDictionary new];</span><br><span class="line">    KeyType *key1 = [[KeyType alloc] initWithKeyName:@&quot;key1&quot;];</span><br><span class="line">    KeyType *key2 = [[KeyType alloc] initWithKeyName:@&quot;key1&quot;];</span><br><span class="line">    [dic setObject:@&quot;object1&quot; forKey:key1];</span><br><span class="line">    NSLog(@&quot;%@&quot;,dic[key2]);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>很明显，最后打印是null。</p>
+<p>但是在一般的业务场景，因为key1和key2的keyName属性都一样，所以应该被看为同一个key。</p>
+<p>所以我们要重新hash方法。</p>
+<h5 id="如何重写hash方法"><a href="#如何重写hash方法" class="headerlink" title="如何重写hash方法"></a>如何重写hash方法</h5><p>一个合理的hash方法要尽量让hash表中的元素均匀分布，来保证较高的查询性能。</p>
+<p>如果两个对象可以被视为同一个对象，那么他们的hash值要一样。</p>
+<p>mattt在文章<a href="https://nshipster.com/equality/" target="_blank" rel="noopener">Equality</a> 中给出了一个普遍的算法:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">- (NSUInteger)hash &#123;</span><br><span class="line">    return [self.property1 hash] ^ [self.property2 hash] ^ [self.property3 hash];</span><br><span class="line">&#125;</span><br><span class="line">//假设对象有三个属性，那么对这三个属性分别算出hash值，然后进行异或运算</span><br></pre></td></tr></table></figure>
+<p>Instagram在开源IGListKit的同时，鼓励这么写hash方法：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">- (NSUInteger)hash</span><br><span class="line">&#123;</span><br><span class="line">  NSUInteger subhashes[] = &#123;[self.property1 hash], [self.property2 hash], [self.property3 hash]&#125;;</span><br><span class="line">  NSUInteger result = subhashes[0];</span><br><span class="line">  for (int ii = 1; ii &lt; 3; ++ii) &#123;</span><br><span class="line">    unsigned long long base = (((unsigned long long)result) &lt;&lt; 32 | subhashes[ii]);</span><br><span class="line">    base = (~base) + (base &lt;&lt; 18);</span><br><span class="line">    base ^= (base &gt;&gt; 31);</span><br><span class="line">    base *=  21;</span><br><span class="line">    base ^= (base &gt;&gt; 11);</span><br><span class="line">    base += (base &lt;&lt; 6);</span><br><span class="line">    base ^= (base &gt;&gt; 22);</span><br><span class="line">    result = base;</span><br><span class="line">  &#125;</span><br><span class="line">  return result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="重写isEqual"><a href="#重写isEqual" class="headerlink" title="重写isEqual:"></a>重写isEqual:</h3><p>如何写一个合理高效的判等方法？</p>
+<ol>
+<li>首先对内存地址进行判断，地址相等return YES;</li>
+<li>进行判空处理，self == nil || object == nil ，return NO;</li>
+<li>类型判断，![object isKindOfClass:[self class]] , return NO;</li>
+<li>对对象的其他属性进行判断</li>
+</ol>
+<p>根据这四个步骤，我们可以发现，我们都是先判断时间开销最少的属性。所以对于第4个步骤，如果对象有很多属性，我们也要依照这个原则来！比如[self.array isEqual:other.array] &amp;&amp; self.intVal == other.intVal这种写法是不合理的，因为array的判等会去遍历元素，时间开销大。如果intVal不相等的话就可以直接return NO了，没必要进行数组的判等。应该这么写： self.intVal == other.intVal  &amp;&amp;  [self.array isEqual:other.array]</p>
+<p>示例如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">- (BOOL)isEqual:(PersonModel *)object</span><br><span class="line">&#123;</span><br><span class="line">  if (self == object) &#123;</span><br><span class="line">    return YES;</span><br><span class="line">  &#125; else if (self == nil || object == nil || ![object isKindOfClass:[self class]]) &#123;</span><br><span class="line">    return NO;</span><br><span class="line">  &#125;</span><br><span class="line">  return</span><br><span class="line">    (_property1 == object-&gt;_property1 ? YES : [_property1 isEqual:object-&gt;_property1]) &amp;&amp;</span><br><span class="line">    (_property2 == object-&gt;_property2 ? YES : [_property2 isEqual:object-&gt;_property2]) &amp;&amp;</span><br><span class="line">    (_property3 == object-&gt;_property3 ? YES : [_property3 isEqual:object-&gt;_property3]);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/01/21/SDWebImage解析之SDImageCache/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
@@ -1595,7 +1817,7 @@
               
                 <a href="/archives">
               
-                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-count">8</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -1617,7 +1839,7 @@
               
               <div class="site-state-item site-state-tags">
                 <a href="/tags/index.html">
-                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-count">3</span>
                   <span class="site-state-item-name">tags</span>
                 </a>
               </div>

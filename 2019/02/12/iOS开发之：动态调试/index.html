@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="SDWebImage源码解析,">
+  <meta name="keywords" content="iOS底层原理,">
 
 
 
@@ -79,21 +79,18 @@
 
 
 
-<meta name="description" content="要想成为优秀，要先模仿优秀，书法如此，代码也如此。我们总可以在阅读优秀源码有所收获，你会发现，原来，代码可以这么写！  接触iOS开发的同学都接触过这个框架。SDWebImage作者精简的接口设计极大的简化了我们开发中有关图片的需求场景。正因为这样，不少开发者对SDWebImage仅仅停留在使用上面，而没有去剖析框架。 我们先来看下SDWebImage架构图：从框架图可以看出主要包括：  核心类">
-<meta name="keywords" content="SDWebImage源码解析">
+<meta name="description" content="首先，安利一个facebook的调试神器： Chisel 。Xcode动态调试原理：首先来了解几个术语：GCC，LLVM，GDB，LLDB：GCC和GDB属于编译器，LLVM和LLDB属于调试器  Xcode编译器的发展历程：GCC —&amp;gt; LLVM Xcode调试器的发展历程：GDB —&amp;gt; LLDB  当Xcode识别到手机设备后，会自动将debugserver安装到iPhone上面：">
+<meta name="keywords" content="iOS底层原理">
 <meta property="og:type" content="article">
-<meta property="og:title" content="SDWebImage源码解析">
-<meta property="og:url" content="http://yoursite.com/2018/12/28/SDWebImage源码解析/index.html">
+<meta property="og:title" content="iOS开发之：动态调试">
+<meta property="og:url" content="http://yoursite.com/2019/02/12/iOS开发之：动态调试/index.html">
 <meta property="og:site_name" content="黄锦标的博客">
-<meta property="og:description" content="要想成为优秀，要先模仿优秀，书法如此，代码也如此。我们总可以在阅读优秀源码有所收获，你会发现，原来，代码可以这么写！  接触iOS开发的同学都接触过这个框架。SDWebImage作者精简的接口设计极大的简化了我们开发中有关图片的需求场景。正因为这样，不少开发者对SDWebImage仅仅停留在使用上面，而没有去剖析框架。 我们先来看下SDWebImage架构图：从框架图可以看出主要包括：  核心类">
+<meta property="og:description" content="首先，安利一个facebook的调试神器： Chisel 。Xcode动态调试原理：首先来了解几个术语：GCC，LLVM，GDB，LLDB：GCC和GDB属于编译器，LLVM和LLDB属于调试器  Xcode编译器的发展历程：GCC —&amp;gt; LLVM Xcode调试器的发展历程：GDB —&amp;gt; LLDB  当Xcode识别到手机设备后，会自动将debugserver安装到iPhone上面：">
 <meta property="og:locale" content="default">
-<meta property="og:image" content="http://yoursite.com/2018/12/28/SDWebImage源码解析/SDWebImageArchitecture.png">
-<meta property="og:image" content="http://yoursite.com/2018/12/28/SDWebImage源码解析/SDWebImage_sequence.png">
-<meta property="og:updated_time" content="2018-12-29T03:21:46.149Z">
+<meta property="og:updated_time" content="2019-03-14T06:30:36.044Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="SDWebImage源码解析">
-<meta name="twitter:description" content="要想成为优秀，要先模仿优秀，书法如此，代码也如此。我们总可以在阅读优秀源码有所收获，你会发现，原来，代码可以这么写！  接触iOS开发的同学都接触过这个框架。SDWebImage作者精简的接口设计极大的简化了我们开发中有关图片的需求场景。正因为这样，不少开发者对SDWebImage仅仅停留在使用上面，而没有去剖析框架。 我们先来看下SDWebImage架构图：从框架图可以看出主要包括：  核心类">
-<meta name="twitter:image" content="http://yoursite.com/2018/12/28/SDWebImage源码解析/SDWebImageArchitecture.png">
+<meta name="twitter:title" content="iOS开发之：动态调试">
+<meta name="twitter:description" content="首先，安利一个facebook的调试神器： Chisel 。Xcode动态调试原理：首先来了解几个术语：GCC，LLVM，GDB，LLDB：GCC和GDB属于编译器，LLVM和LLDB属于调试器  Xcode编译器的发展历程：GCC —&amp;gt; LLVM Xcode调试器的发展历程：GDB —&amp;gt; LLDB  当Xcode识别到手机设备后，会自动将debugserver安装到iPhone上面：">
 
 
 
@@ -123,13 +120,13 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2018/12/28/SDWebImage源码解析/">
+  <link rel="canonical" href="http://yoursite.com/2019/02/12/iOS开发之：动态调试/">
 
 
 
 
 
-  <title>SDWebImage源码解析 | 黄锦标的博客</title>
+  <title>iOS开发之：动态调试 | 黄锦标的博客</title>
   
 
 
@@ -266,7 +263,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/28/SDWebImage源码解析/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/02/12/iOS开发之：动态调试/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
       <meta itemprop="name" content="DevHuangjb">
@@ -283,7 +280,7 @@
 
         
         
-          <h1 class="post-title" itemprop="name headline">SDWebImage源码解析</h1>
+          <h1 class="post-title" itemprop="name headline">iOS开发之：动态调试</h1>
         
 
         <div class="post-meta">
@@ -295,8 +292,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-28T17:16:28+08:00">
-                2018-12-28
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-02-12T13:51:43+08:00">
+                2019-02-12
               </time>
             
 
@@ -355,22 +352,99 @@
       
 
       
-        <blockquote>
-<p>要想成为优秀，要先模仿优秀，书法如此，代码也如此。<br>我们总可以在阅读优秀源码有所收获，你会发现，原来，代码可以这么写！</p>
-</blockquote>
-<p>接触iOS开发的同学都接触过这个框架。SDWebImage作者精简的接口设计极大的简化了我们开发中有关图片的需求场景。正因为这样，不少开发者对SDWebImage仅仅停留在使用上面，而没有去剖析框架。</p>
-<p>我们先来看下SDWebImage架构图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImageArchitecture.png" alt="架构图"><br>从框架图可以看出主要包括：</p>
+        <h3 id="首先，安利一个facebook的调试神器：-Chisel-。"><a href="#首先，安利一个facebook的调试神器：-Chisel-。" class="headerlink" title="首先，安利一个facebook的调试神器： Chisel 。"></a>首先，安利一个facebook的调试神器： <a href="https://github.com/facebook/chisel" target="_blank" rel="noopener">Chisel</a> 。</h3><h3 id="Xcode动态调试原理："><a href="#Xcode动态调试原理：" class="headerlink" title="Xcode动态调试原理："></a>Xcode动态调试原理：</h3><p>首先来了解几个术语：GCC，LLVM，GDB，LLDB：GCC和GDB属于编译器，LLVM和LLDB属于调试器</p>
 <ul>
-<li>核心类: SDWebImageManager</li>
-<li>图片下载：SDWebImageDownloader</li>
-<li>图片缓存：SdImageCache</li>
-<li>UIKit拓展分类：UIView，UIImageView，UIButton等分类</li>
-<li>图片编解码类：SDWebImageCodersManager</li>
-<li>其他辅助类</li>
+<li>Xcode编译器的发展历程：GCC —&gt; LLVM</li>
+<li>Xcode调试器的发展历程：GDB —&gt; LLDB</li>
 </ul>
-<p>从功能上来看，各个类的职责都很清晰。</p>
-<p>下面来看一下SDWebImage工作的时序图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImage_sequence.png" alt="时序图"><br>主业务线：UIImageView通过调用UIView:sd_internalSetImageWithURL；然后调用SDWebImageManager:loadImageWithUrl；SDWebImageManager去查询SdImageCache是否有图片，如果有直接返回图片，如果没有调用SDWebImageDownloader下载图片；SDWebImageDownloader下载完图片会调用SDImageCache对图片进行缓存。</p>
-<p>具体的细节后面将会在各个模块的专题中解析。</p>
+<p>当Xcode识别到手机设备后，会自动将debugserver安装到iPhone上面：/Developer/usr/bin/debugserver。之后Xcode利用本身集成的调试器LLDB和debugserver交互，达到调试APP的目的。</p>
+<h3 id="LLDB常用命令："><a href="#LLDB常用命令：" class="headerlink" title="LLDB常用命令："></a>LLDB常用命令：</h3><p>首先介绍下lldb命令的格式：</p>
+<ul>
+<li><p>help：</p>
+<p>help:只输入help会列出lldb的所有命令，包括用户自定义的lldb命令集</p>
+<p>help <command>: 某个命令的用法信息，比如help breakpoint</p>
+<p>help <command> [subcommand] : 某个命令的子命令的用法，比如help breakpoint set</p>
+</li>
+<li><p>p、call、print、express四个命令等价，都是可以执行一个表达式</p>
+<p>比如</p>
+<p>可以p self.xxx来获取某个属性值</p>
+<p>可以p self.view.backgroundColor = [UIColor redColor]，这样就可以随心所欲的执行自己想要的代码，免去反复的build操作</p>
+</li>
+<li><p>po</p>
+<p>po和p的一个差别是p命令只能拿到对象的内存地址，po可以取得对象更详细的信息：比如NSArray和NSDictionary会打印内部的元素，UIVeiw会打印frame,layer等信息</p>
+</li>
+<li><p>thread backtrace : 快捷键bt</p>
+<p>打印线程的堆栈信息</p>
+</li>
+<li><p>thread return [<expr>]：直接退出当前的函数调用栈</expr></p>
+</li>
+<li><p>thread continue<strong>􏰁、</strong>continue<strong>􏰁、</strong>c 􏰲􏰋􏰌􏲥􏲦􏰍􏰎：程序继续运行</p>
+</li>
+<li><p>thread stepover、next、n：单步运行，把子函数当做一个整体</p>
+</li>
+<li><p>thread step-in􏰁、step、s：􏳐􏳑􏰍􏰎􏰑􏳕􏰽􏲲􏰣􏰟􏱃􏲑􏲝􏲲􏰣􏰟单步运行，遇到子函数会跳进子函数</p>
+</li>
+<li><p>thread step-out、finish：执行完当前函数的所有代码，返回到上一个调用的函数 􏰲􏳐􏳑􏰍􏰎􏰑􏳕􏰽􏲲</p>
+</li>
+<li><p>watchpoint set variable 变量：当内存数据变化时触发断点</p>
+</li>
+<li><p>watchpoint list：列出内存断点列表</p>
+</li>
+<li><p>watchpoint enable 断点编号：使能断点</p>
+</li>
+<li><p>watchpoint disable 断点编号：使断点失效</p>
+</li>
+<li><p>watchpoint delete 断点编号：删除断点</p>
+</li>
+<li><p>image lookup -address 内存地址：查找这个地址具体对应的文件位置</p>
+</li>
+<li><p>image lookup -name methodName: 查找一个方法或者符号的信息，比如所在文件位置等</p>
+</li>
+<li><p>image lookup -type className ：打印某个类的信息</p>
+</li>
+</ul>
+<p>更多的lldb命令请参考官方文档：<a href="http://lldb.llvm.org/lldb-gdb.html" target="_blank" rel="noopener">文档</a></p>
+<h3 id="Chisel"><a href="#Chisel" class="headerlink" title="Chisel"></a>Chisel</h3><p>Chisel是facebook开源的辅助动态调试iOS APP的LLDB命令集合。详细文档参考 <a href="https://github.com/facebook/chisel/wiki" target="_blank" rel="noopener">github wiki</a></p>
+<p>下面我举几个比较常用：</p>
+<ul>
+<li><p><strong>bmessage</strong>：这个命令可以指定某个方法打断点，即使你的代码没有重写这个方法，bmessage也会遍历继承链去查找。</p>
+<p>用法： <strong>bmessage -[ViewController viewWillAppear:]</strong></p>
+</li>
+<li><p><strong>border</strong>：给指定的view添加边框</p>
+<p>用法：<strong>border -c red -w 5 self.redView</strong> 或者 <strong>border –color=red —width=5 self.redView</strong></p>
+<p>等价于lldb命令：<strong>p self.redView.layer.borderColor = [UIColor redColor].CGColor</strong> &amp;&amp; <strong>p self.redView.layer.borderWidth = 5</strong></p>
+<p>怎么样？是不是爽多了！</p>
+</li>
+</ul>
+<ul>
+<li><strong>unborder</strong>：去除view的边框。</li>
+<li><p><strong>caflush</strong>：重新刷新UI界面</p>
+</li>
+<li><p><strong>flicker</strong>：闪烁指定的view，可以快速定位到指定view的位置</p>
+</li>
+<li><strong>fv</strong>： fv <classnameregex>，指定一个ClassName的正则表达式，fv会打印出整个视图层级中subview的类名符合正则表达式的对象</classnameregex></li>
+<li><strong>fvc</strong>：fvc [–name=classNameRegex] [–view=view]，两个参数只能指定其中一个。根据类名或者指定view来查找对应的控制器实例对象。</li>
+<li><strong>hide &amp; show</strong>：显示或隐藏指定的view</li>
+<li><strong>mwarning</strong>：模拟发出一个内存警告</li>
+<li><strong>pbundlepath</strong>：打印budler路径</li>
+<li><strong>pdocspath</strong>：打印沙盒路径。pdocspath -o，打印路径的同时在Finder中打开</li>
+<li><strong>pinternals</strong>：打印对象内部的成员变量</li>
+<li><p><strong>pjson</strong>：打印json数据，lldb的po指令显示不了中文，pjson可以显示中文</p>
+</li>
+<li><p><strong>pmethods</strong>：打印某个类的方法</p>
+<p>用法：<strong>pmethods -a -i -c -n IndexMainController</strong> (-a：把方法函数指针打印出来，-i：打印实例方法，-c：打印类方法)</p>
+</li>
+<li><p><strong>pvc</strong>：打印当前控制器的层级结构</p>
+</li>
+<li><p><strong>pviews</strong>：pviews self.view: 打印self.view的subviews</p>
+</li>
+<li><p><strong>slowanim</strong> &amp;&amp; <strong>unslowanim</strong>：这两个命令在调试动画的时候非常。有用用法：slowanim <speed>,speed默认是0.1。</speed></p>
+</li>
+<li><p><strong>taplog</strong>：输入taplog，然后点击屏幕上面的view，会把这个view的信息打印出来</p>
+</li>
+<li><p><strong>visualize</strong>：visualize <target> (target可以是： UIImage, CGImageRef, UIView, or CALayer)，调用系统的图片查看器展示对应的对象。</target></p>
+</li>
+</ul>
 
       
     </div>
@@ -388,7 +462,7 @@
       
         <div class="post-tags">
           
-            <a href="/tags/SDWebImage源码解析/" rel="tag"># SDWebImage源码解析</a>
+            <a href="/tags/iOS底层原理/" rel="tag"># iOS底层原理</a>
           
         </div>
       
@@ -401,8 +475,8 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2018/12/28/写在前面/" rel="next" title="写在前面">
-                <i class="fa fa-chevron-left"></i> 写在前面
+              <a href="/2019/01/25/iOS底层原理：NSDictionary原理/" rel="next" title="iOS底层原理：NSDictionary原理">
+                <i class="fa fa-chevron-left"></i> iOS底层原理：NSDictionary原理
               </a>
             
           </div>
@@ -410,10 +484,6 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
-            
-              <a href="/2018/12/31/SDWebImage解析之SDWebImageDownloaderOperation/" rel="prev" title="SDWebImage解析之SDWebImageDownloaderOperation">
-                SDWebImage解析之SDWebImageDownloaderOperation <i class="fa fa-chevron-right"></i>
-              </a>
             
           </div>
         </div>
@@ -465,8 +535,17 @@
       
 
       
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
 
-      <section class="site-overview-wrap sidebar-panel sidebar-panel-active">
+      <section class="site-overview-wrap sidebar-panel">
         <div class="site-overview">
           <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
             
@@ -544,6 +623,22 @@
         </div>
       </section>
 
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#首先，安利一个facebook的调试神器：-Chisel-。"><span class="nav-number">1.</span> <span class="nav-text">首先，安利一个facebook的调试神器： Chisel 。</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Xcode动态调试原理："><span class="nav-number">2.</span> <span class="nav-text">Xcode动态调试原理：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#LLDB常用命令："><span class="nav-number">3.</span> <span class="nav-text">LLDB常用命令：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Chisel"><span class="nav-number">4.</span> <span class="nav-text">Chisel</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
       
 
       

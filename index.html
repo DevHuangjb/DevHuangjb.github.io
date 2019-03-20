@@ -259,6 +259,158 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/03/20/记一个安装Charles证书的大坑/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="DevHuangjb">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="黄锦标的博客">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/03/20/记一个安装Charles证书的大坑/" itemprop="url">记一个安装Charles证书的大坑~</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-03-20T15:17:12+08:00">
+                2019-03-20
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/iOS/" itemprop="url" rel="index">
+                    <span itemprop="name">iOS</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p>今天在我个人的Mac上面安装charles并配置ssl证书的时候出现了一个问题，iphone device访问chls.pro/ssl下载证书的时候没有出现弹框，仅仅是以字符串的形式展示证书的密文:</p>
+<p>“ - - - - BEGIN CERTIFICATE - - - - </p>
+<p>sdfjsljdflsjaldjlsjlj</p>
+<p>sljdfljsflj……</p>
+<p>“ - - - - END CERTIFICATE - - - - “</p>
+<p>同样的操作流程我在公司的电脑却能正常安装，不过公司的Charles已经装很久了我也不知道有没有遗漏什么。</p>
+<p>二话不说，，上stackoverflow一通搜索。尼玛竟然没有类似的question！</p>
+<p>当时我就有点生活不能自理，只能靠自己了。</p>
+<p>各种尝试，各种排除法之后发现了问题所在：</p>
+<p>Charles菜单栏 —&gt; Tool —&gt; Rewrite被使能了，这样请求证书文件<a href="http://www.charlesproxy.com/getssl时，请求头会添加：content-type:application/json;charset=UTF-8" target="_blank" rel="noopener">http://www.charlesproxy.com/getssl时，请求头会添加：content-type:application/json;charset=UTF-8</a></p>
+<p>所以，把Rewrite disable掉，就能正常安装证书了。</p>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/02/12/iOS开发之：动态调试/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
@@ -2051,7 +2203,7 @@
               
                 <a href="/archives">
               
-                  <span class="site-state-item-count">9</span>
+                  <span class="site-state-item-count">10</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -2073,7 +2225,7 @@
               
               <div class="site-state-item site-state-tags">
                 <a href="/tags/index.html">
-                  <span class="site-state-item-count">3</span>
+                  <span class="site-state-item-count">4</span>
                   <span class="site-state-item-name">tags</span>
                 </a>
               </div>

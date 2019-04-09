@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="Hexo, NexT">
+  <meta name="keywords" content="iOS底层原理,">
 
 
 
@@ -79,17 +79,18 @@
 
 
 
-<meta name="description" content="2018年12月28日了。 转眼间又快到跨年的时候了。。 为什么写博客？ 其实这个念头已经藏了一两年了。无奈迫于精力（其实主要是因为懒）一直搁置到现在。 2015年接触iOS开发以来，为了效率开发笔记一直都是依靠有道云笔记。这让我有点闭门造车的感觉，所以我打算把笔记整理一下发到博客上来。 以前拜读YYKit作者郭耀源的博客只是看一些技术类的文章。前段时间无意翻到作者2010年发布的日记，其中作者在">
+<meta name="description" content="学汇编最主要的是要搞懂：寄存器，指令和堆栈三个方面。 iPhone5S后，苹果都采用ARM64架构。 本文主要介绍ARM64汇编寄存器和常用指令集。 寄存器ARM64架构中共有34个寄存器,包括31个通用寄存器、SP、PC、CPSR。  R0-R30通用寄存器 每个寄存器最多可以存取一个64位大小的数。以x0-x30形式使用时是64位的，以w0-w30形式使用时是32位的。 其中，R0-R7作为函">
+<meta name="keywords" content="iOS底层原理">
 <meta property="og:type" content="article">
-<meta property="og:title" content="写在前面">
-<meta property="og:url" content="http://yoursite.com/2018/12/28/写在前面/index.html">
+<meta property="og:title" content="arm64汇编简单笔记">
+<meta property="og:url" content="http://yoursite.com/2019/03/28/arm64汇编简单笔记/index.html">
 <meta property="og:site_name" content="黄锦标的博客">
-<meta property="og:description" content="2018年12月28日了。 转眼间又快到跨年的时候了。。 为什么写博客？ 其实这个念头已经藏了一两年了。无奈迫于精力（其实主要是因为懒）一直搁置到现在。 2015年接触iOS开发以来，为了效率开发笔记一直都是依靠有道云笔记。这让我有点闭门造车的感觉，所以我打算把笔记整理一下发到博客上来。 以前拜读YYKit作者郭耀源的博客只是看一些技术类的文章。前段时间无意翻到作者2010年发布的日记，其中作者在">
+<meta property="og:description" content="学汇编最主要的是要搞懂：寄存器，指令和堆栈三个方面。 iPhone5S后，苹果都采用ARM64架构。 本文主要介绍ARM64汇编寄存器和常用指令集。 寄存器ARM64架构中共有34个寄存器,包括31个通用寄存器、SP、PC、CPSR。  R0-R30通用寄存器 每个寄存器最多可以存取一个64位大小的数。以x0-x30形式使用时是64位的，以w0-w30形式使用时是32位的。 其中，R0-R7作为函">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2018-12-28T08:48:33.184Z">
+<meta property="og:updated_time" content="2019-03-31T07:15:32.260Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="写在前面">
-<meta name="twitter:description" content="2018年12月28日了。 转眼间又快到跨年的时候了。。 为什么写博客？ 其实这个念头已经藏了一两年了。无奈迫于精力（其实主要是因为懒）一直搁置到现在。 2015年接触iOS开发以来，为了效率开发笔记一直都是依靠有道云笔记。这让我有点闭门造车的感觉，所以我打算把笔记整理一下发到博客上来。 以前拜读YYKit作者郭耀源的博客只是看一些技术类的文章。前段时间无意翻到作者2010年发布的日记，其中作者在">
+<meta name="twitter:title" content="arm64汇编简单笔记">
+<meta name="twitter:description" content="学汇编最主要的是要搞懂：寄存器，指令和堆栈三个方面。 iPhone5S后，苹果都采用ARM64架构。 本文主要介绍ARM64汇编寄存器和常用指令集。 寄存器ARM64架构中共有34个寄存器,包括31个通用寄存器、SP、PC、CPSR。  R0-R30通用寄存器 每个寄存器最多可以存取一个64位大小的数。以x0-x30形式使用时是64位的，以w0-w30形式使用时是32位的。 其中，R0-R7作为函">
 
 
 
@@ -119,13 +120,13 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2018/12/28/写在前面/">
+  <link rel="canonical" href="http://yoursite.com/2019/03/28/arm64汇编简单笔记/">
 
 
 
 
 
-  <title>写在前面 | 黄锦标的博客</title>
+  <title>arm64汇编简单笔记 | 黄锦标的博客</title>
   
 
 
@@ -262,7 +263,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/28/写在前面/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/03/28/arm64汇编简单笔记/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
       <meta itemprop="name" content="DevHuangjb">
@@ -279,7 +280,7 @@
 
         
         
-          <h1 class="post-title" itemprop="name headline">写在前面</h1>
+          <h1 class="post-title" itemprop="name headline">arm64汇编简单笔记</h1>
         
 
         <div class="post-meta">
@@ -291,8 +292,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-28T14:57:59+08:00">
-                2018-12-28
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-03-28T15:17:25+08:00">
+                2019-03-28
               </time>
             
 
@@ -314,8 +315,8 @@
               
               
                 <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
-                  <a href="/categories/diary/" itemprop="url" rel="index">
-                    <span itemprop="name">diary</span>
+                  <a href="/categories/iOS/" itemprop="url" rel="index">
+                    <span itemprop="name">iOS</span>
                   </a>
                 </span>
 
@@ -351,13 +352,74 @@
       
 
       
-        <p><strong>2018年12月28日了。</strong></p>
-<p>转眼间又快到跨年的时候了。。</p>
-<p><strong>为什么写博客？</strong></p>
-<p>其实这个念头已经藏了一两年了。无奈迫于精力（其实主要是因为懒）一直搁置到现在。</p>
-<p>2015年接触iOS开发以来，为了效率开发笔记一直都是依靠有道云笔记。这让我有点闭门造车的感觉，所以我打算把笔记整理一下发到博客上来。</p>
-<p>以前拜读YYKit作者<a href="https://blog.ibireme.com/" target="_blank" rel="noopener">郭耀源的博客</a>只是看一些技术类的文章。前段时间无意翻到作者2010年发布的日记，其中作者在调通iPhone真机调试后说了一句话“看看我以后还有兴趣的话就继续学一下了~谁知道呢。。。”  谁知道呢？后来YYKit能收到这么大的反响。YYKit的成功让我觉得这句话很有意思。</p>
-<p>人生充满未知数，仅以本博客记录点滴。</p>
+        <p>学汇编最主要的是要搞懂：寄存器，指令和堆栈三个方面。</p>
+<p>iPhone5S后，苹果都采用ARM64架构。</p>
+<p>本文主要介绍ARM64汇编寄存器和常用指令集。</p>
+<h3 id="寄存器"><a href="#寄存器" class="headerlink" title="寄存器"></a>寄存器</h3><p>ARM64架构中共有34个寄存器,包括31个通用寄存器、SP、PC、CPSR。</p>
+<ul>
+<li><p>R0-R30通用寄存器</p>
+<p>每个寄存器最多可以存取一个64位大小的数。以x0-x30形式使用时是64位的，以w0-w30形式使用时是32位的。</p>
+<p>其中，R0-R7作为函数的参数，R0保存函数的返回值</p>
+<p>其中，R8寄存器用来保存子程序的返回值</p>
+<p>其中，R29又称FP寄存器(frame point)，主要用来保存栈帧（栈底）指针；</p>
+<p>其中，R30又称LR寄存器(link register)，主要用来保存函数返回地址</p>
+</li>
+<li><p>SP：栈顶指针</p>
+</li>
+<li><p>PC：类似于8086汇编中的IP寄存器，用来记录当前执行的指令地址</p>
+</li>
+<li><p>CPSR：状态寄存器，用来标记运算各种标记</p>
+</li>
+</ul>
+<h3 id="指令集"><a href="#指令集" class="headerlink" title="指令集"></a>指令集</h3><ul>
+<li><p>MOV 指令</p>
+<p>mov x0, x1：把寄存器r1的值赋给寄存器r0</p>
+<p>mov w0, #0x1122：把0x1122写进r1的低16位</p>
+<p>movk   w0, #0x3344, lsl #16：0x3344作为w0的16-32位值</p>
+</li>
+<li><p>ADD 加法指令</p>
+<p>ADD{条件}{S} 目的寄存器，操作数 1，操作数 2；指令用于把两个操作数相加，并将结果存放到目的寄存器中</p>
+<p>ADD x0，x1，x2： x0 = x1 + x2<br> ADD x0，x1，#256：x0 = x1 + 256<br> ADD x0，x2，x3，LSL#1：x0 = x2 + x3&lt;&lt;1</p>
+</li>
+<li><p>SUB 减法指令</p>
+<p>SUB{条件}{S} 目的寄存器，操作数 1，操作数 2</p>
+</li>
+<li><p>AND 逻辑与指令</p>
+<p>AND{条件}{S} 目的寄存器，操作数 1，操作数 2</p>
+</li>
+<li><p>ORR 逻辑或指令</p>
+<p>ORR{条件}{S} 目的寄存器，操作数 1，操作数 2</p>
+</li>
+<li><p>EOR 逻辑异或指令</p>
+<p>ORR{条件}{S} 目的寄存器，操作数 1，操作数 2</p>
+</li>
+<li><p>LDR 存储器到寄存器的数据传输指令</p>
+<p>LDR{条件} 目的寄存器，&lt;存储器地址&gt;</p>
+</li>
+<li><p>STR 寄存器到存储器的数据传输指令</p>
+<p>STR{条件} 源寄存器，&lt;存储器地址&gt;</p>
+</li>
+<li><p>LDP 存储器连续读两个单元到两个寄存器</p>
+<p>LDP 寄存器1， 寄存器2，&lt;存储器地址&gt;</p>
+</li>
+<li><p>STP 把两个寄存器的值连续放在某个内存地址后</p>
+<p>STP 寄存器1， 寄存器2，&lt;存储器地址&gt;</p>
+</li>
+<li><p>CMP 比较指令</p>
+<p>CMP{条件} 操作数 1，操作数 2</p>
+<p>CMP 指令用于把一个寄存器的内容和另一个寄存器的内容或立即数进行比较，同时更新 CPSR 中 </p>
+<p>条件标志位的值。该指令进行一次减法运算，但不存储结果，只更改条件标志位。标志位表示的是 操作数 1 与操作数 2 的关系(大、小、相等) 。</p>
+</li>
+<li><p>B 跳转指令</p>
+<p>把要跳转的指令地址赋给PC寄存器</p>
+</li>
+<li><p>BL带返回地址的跳转指令</p>
+<p>把要跳转的指令地址赋给PC寄存器，同时把下一个指令地址(返回地址)赋给LR寄存器</p>
+</li>
+<li><p>RET 子程序退出返回指令</p>
+</li>
+</ul>
+<p><strong><em>在后面学习中有遇到其他指令会更新</em></strong></p>
 
       
     </div>
@@ -373,6 +435,12 @@
 
     <footer class="post-footer">
       
+        <div class="post-tags">
+          
+            <a href="/tags/iOS底层原理/" rel="tag"># iOS底层原理</a>
+          
+        </div>
+      
 
       
       
@@ -382,14 +450,18 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
+              <a href="/2019/03/21/从汇编层面分析函数调用/" rel="next" title="从汇编层面分析函数调用">
+                <i class="fa fa-chevron-left"></i> 从汇编层面分析函数调用
+              </a>
+            
           </div>
 
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
             
-              <a href="/2018/12/28/SDWebImage源码解析/" rel="prev" title="SDWebImage源码解析">
-                SDWebImage源码解析 <i class="fa fa-chevron-right"></i>
+              <a href="/2019/04/03/Mach-O文件简介和fishhook原理解析/" rel="prev" title="Mach-O文件简介和fishhook原理解析">
+                Mach-O文件简介和fishhook原理解析 <i class="fa fa-chevron-right"></i>
               </a>
             
           </div>
@@ -442,8 +514,17 @@
       
 
       
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
 
-      <section class="site-overview-wrap sidebar-panel sidebar-panel-active">
+      <section class="site-overview-wrap sidebar-panel">
         <div class="site-overview">
           <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
             
@@ -521,6 +602,22 @@
         </div>
       </section>
 
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#寄存器"><span class="nav-number">1.</span> <span class="nav-text">寄存器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#指令集"><span class="nav-number">2.</span> <span class="nav-text">指令集</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
       
 
       

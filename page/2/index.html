@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="SDWebImage源码解析,">
+  <meta name="keywords" content="Hexo, NexT">
 
 
 
@@ -79,18 +79,13 @@
 
 
 
-<meta name="description" content="根据我阅读源码的习惯，我会先阅读比较核心的，并且没有或者较少引入其他文件的类。所以，就让我们先从SDWebImageDownloaderOperation说起吧。 在iOS9.0之后，苹果推出了NSUrlSession，并推荐开发者用NSUrlSession替代NSUrlConnection。如果我们自己用NSUrlSession来请求图片，主要有： 1234NSURLSession *sessi">
-<meta name="keywords" content="SDWebImage源码解析">
-<meta property="og:type" content="article">
-<meta property="og:title" content="SDWebImage解析之SDWebImageDownloaderOperation">
-<meta property="og:url" content="http://yoursite.com/2018/12/31/SDWebImage解析之SDWebImageDownloaderOperation/index.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="黄锦标的博客">
+<meta property="og:url" content="http://yoursite.com/page/2/index.html">
 <meta property="og:site_name" content="黄锦标的博客">
-<meta property="og:description" content="根据我阅读源码的习惯，我会先阅读比较核心的，并且没有或者较少引入其他文件的类。所以，就让我们先从SDWebImageDownloaderOperation说起吧。 在iOS9.0之后，苹果推出了NSUrlSession，并推荐开发者用NSUrlSession替代NSUrlConnection。如果我们自己用NSUrlSession来请求图片，主要有： 1234NSURLSession *sessi">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2018-12-31T16:35:39.987Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="SDWebImage解析之SDWebImageDownloaderOperation">
-<meta name="twitter:description" content="根据我阅读源码的习惯，我会先阅读比较核心的，并且没有或者较少引入其他文件的类。所以，就让我们先从SDWebImageDownloaderOperation说起吧。 在iOS9.0之后，苹果推出了NSUrlSession，并推荐开发者用NSUrlSession替代NSUrlConnection。如果我们自己用NSUrlSession来请求图片，主要有： 1234NSURLSession *sessi">
+<meta name="twitter:title" content="黄锦标的博客">
 
 
 
@@ -120,13 +115,13 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2018/12/31/SDWebImage解析之SDWebImageDownloaderOperation/">
+  <link rel="canonical" href="http://yoursite.com/page/2/">
 
 
 
 
 
-  <title>SDWebImage解析之SDWebImageDownloaderOperation | 黄锦标的博客</title>
+  <title>黄锦标的博客</title>
   
 
 
@@ -145,7 +140,8 @@
     
   
 
-  <div class="container sidebar-position-left page-post-detail">
+  <div class="container sidebar-position-left 
+  page-home">
     <div class="headband"></div>
 
     <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
@@ -248,9 +244,9 @@
         <div class="content-wrap">
           <div id="content" class="content">
             
-
-  <div id="posts" class="posts-expand">
+  <section id="posts" class="posts-expand">
     
+      
 
   
 
@@ -280,7 +276,9 @@
 
         
         
-          <h1 class="post-title" itemprop="name headline">SDWebImage解析之SDWebImageDownloaderOperation</h1>
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2018/12/31/SDWebImage解析之SDWebImageDownloaderOperation/" itemprop="url">SDWebImage解析之SDWebImageDownloaderOperation</a></h1>
         
 
         <div class="post-meta">
@@ -352,7 +350,9 @@
       
 
       
-        <p>根据我阅读源码的习惯，我会先阅读比较核心的，并且没有或者较少引入其他文件的类。所以，就让我们先从SDWebImageDownloaderOperation说起吧。</p>
+        
+          
+            <p>根据我阅读源码的习惯，我会先阅读比较核心的，并且没有或者较少引入其他文件的类。所以，就让我们先从SDWebImageDownloaderOperation说起吧。</p>
 <p>在iOS9.0之后，苹果推出了NSUrlSession，并推荐开发者用NSUrlSession替代NSUrlConnection。如果我们自己用NSUrlSession来请求图片，主要有：</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:nil];</span><br><span class="line">NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@&quot;http://pic27.nipic.com/20130329/890845_115317964000_2.jpg&quot;]];</span><br><span class="line">NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:request];</span><br><span class="line">[dataTask resume];</span><br></pre></td></tr></table></figure>
 <p>delegateQueue：为执行代理方法的队列，不指定session默认会创建一个<strong>serial operation queue</strong> </p>
@@ -388,6 +388,8 @@
 <p>细心的你可能会发现，这些代理方法只是对ownedSession而言，那么对于unownedSession 如何监听呢？unownedSession代理方法由SDWebImageDownloader监听，然后一一转发到SDWebImageDownloaderOperation的代理方法中进行处理。这些我们在SDWebImageDownloader的解析中将会看到。</p>
 <p>以上关于解码的部分只是一笔略过，以后会专门写一篇。</p>
 
+          
+        
       
     </div>
     
@@ -402,40 +404,14 @@
 
     <footer class="post-footer">
       
-        <div class="post-tags">
-          
-            <a href="/tags/SDWebImage源码解析/" rel="tag"># SDWebImage源码解析</a>
-          
-        </div>
+
+      
+
       
 
       
       
-      
-
-      
-        <div class="post-nav">
-          <div class="post-nav-next post-nav-item">
-            
-              <a href="/2018/12/28/SDWebImage源码解析/" rel="next" title="SDWebImage源码解析">
-                <i class="fa fa-chevron-left"></i> SDWebImage源码解析
-              </a>
-            
-          </div>
-
-          <span class="post-nav-divider"></span>
-
-          <div class="post-nav-prev post-nav-item">
-            
-              <a href="/2019/01/04/SDWebImage解析之SDWebImageDownloader/" rel="prev" title="SDWebImage解析之SDWebImageDownloader">
-                SDWebImage解析之SDWebImageDownloader <i class="fa fa-chevron-right"></i>
-              </a>
-            
-          </div>
-        </div>
-      
-
-      
+        <div class="post-eof"></div>
       
     </footer>
   </div>
@@ -445,11 +421,319 @@
   </article>
 
 
+    
+      
 
-    <div class="post-spread">
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/28/SDWebImage源码解析/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="DevHuangjb">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="黄锦标的博客">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2018/12/28/SDWebImage源码解析/" itemprop="url">SDWebImage源码解析</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-28T17:16:28+08:00">
+                2018-12-28
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/iOS/" itemprop="url" rel="index">
+                    <span itemprop="name">iOS</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <blockquote>
+<p>要想成为优秀，要先模仿优秀，书法如此，代码也如此。<br>我们总可以在阅读优秀源码有所收获，你会发现，原来，代码可以这么写！</p>
+</blockquote>
+<p>接触iOS开发的同学都接触过这个框架。SDWebImage作者精简的接口设计极大的简化了我们开发中有关图片的需求场景。正因为这样，不少开发者对SDWebImage仅仅停留在使用上面，而没有去剖析框架。</p>
+<p>我们先来看下SDWebImage架构图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImageArchitecture.png" alt="架构图"><br>从框架图可以看出主要包括：</p>
+<ul>
+<li>核心类: SDWebImageManager</li>
+<li>图片下载：SDWebImageDownloader</li>
+<li>图片缓存：SdImageCache</li>
+<li>UIKit拓展分类：UIView，UIImageView，UIButton等分类</li>
+<li>图片编解码类：SDWebImageCodersManager</li>
+<li>其他辅助类</li>
+</ul>
+<p>从功能上来看，各个类的职责都很清晰。</p>
+<p>下面来看一下SDWebImage工作的时序图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImage_sequence.png" alt="时序图"><br>主业务线：UIImageView通过调用UIView:sd_internalSetImageWithURL；然后调用SDWebImageManager:loadImageWithUrl；SDWebImageManager去查询SdImageCache是否有图片，如果有直接返回图片，如果没有调用SDWebImageDownloader下载图片；SDWebImageDownloader下载完图片会调用SDImageCache对图片进行缓存。</p>
+<p>具体的细节后面将会在各个模块的专题中解析。</p>
+
+          
+        
       
     </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
   </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/28/写在前面/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="DevHuangjb">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="黄锦标的博客">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2018/12/28/写在前面/" itemprop="url">写在前面</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-28T14:57:59+08:00">
+                2018-12-28
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/diary/" itemprop="url" rel="index">
+                    <span itemprop="name">diary</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p><strong>2018年12月28日了。</strong></p>
+<p>转眼间又快到跨年的时候了。。</p>
+<p><strong>为什么写博客？</strong></p>
+<p>其实这个念头已经藏了一两年了。无奈迫于精力（其实主要是因为懒）一直搁置到现在。</p>
+<p>2015年接触iOS开发以来，为了效率开发笔记一直都是依靠有道云笔记。这让我有点闭门造车的感觉，所以我打算把笔记整理一下发到博客上来。</p>
+<p>以前拜读YYKit作者<a href="https://blog.ibireme.com/" target="_blank" rel="noopener">郭耀源的博客</a>只是看一些技术类的文章。前段时间无意翻到作者2010年发布的日记，其中作者在调通iPhone真机调试后说了一句话“看看我以后还有兴趣的话就继续学一下了~谁知道呢。。。”  谁知道呢？后来YYKit能收到这么大的反响。YYKit的成功让我觉得这句话很有意思。</p>
+<p>人生充满未知数，仅以本博客记录点滴。</p>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+  </section>
+
+  
+  <nav class="pagination">
+    <a class="extend prev" rel="prev" href="/"><i class="fa fa-angle-left"></i></a><a class="page-number" href="/">1</a><span class="page-number current">2</span>
+  </nav>
+
 
 
           </div>
@@ -457,10 +741,6 @@
 
 
           
-
-  
-
-
 
         </div>
         
@@ -700,10 +980,6 @@
 
 
   
-  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
-<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
-
-
 
   
 

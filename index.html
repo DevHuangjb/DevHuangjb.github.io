@@ -259,6 +259,616 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/04/03/Mach-O文件简介和fishhook原理解析/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="DevHuangjb">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="黄锦标的博客">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/04/03/Mach-O文件简介和fishhook原理解析/" itemprop="url">Mach-O文件简介和fishhook原理解析</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-04-03T16:58:00+08:00">
+                2019-04-03
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/iOS/" itemprop="url" rel="index">
+                    <span itemprop="name">iOS</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p>利用runtime这个黑魔法可以hook Objective-c的方法。</p>
+<p>如果有一个hook C语言函数的需求(比如NSLog()函数)，那该如何完成？</p>
+<p><strong>Facebook</strong>开源的C函数库<strong>fishhook</strong>是一种解决方案。</p>
+<blockquote>
+<p><strong>fishhook</strong> is a very simple library that enables dynamically rebinding symbols in Mach-O binaries running on iOS in the simulator and on device. </p>
+</blockquote>
+<p>以上摘自 <a href="https://github.com/facebook/fishhook" target="_blank" rel="noopener">fishhook</a> README.md：fishhook是一个简单的动态重新绑定Mach-O二进制文件的符号。</p>
+<p>多简单？整个库不到200行代码。却收获了3000多个star。不愧为神作！</p>
+<p>fishhook的工作原理是解析Mach-O二进制文件，找到要重新绑定的符号所在的位置，替换掉符号要跳转的执行代码地址从而达到hook的目的。</p>
+<p>所以，在解析fishhook原理之前，让我们先来了解一下Mach-O文件。</p>
+<h3 id="Mach-O文件"><a href="#Mach-O文件" class="headerlink" title="Mach-O文件"></a>Mach-O文件</h3><p>什么是Mach-O文件：Mach-O格式全称为Mach Object文件格式的缩写，是Mac/iOS上用于存储程序，库的标准文件。我们在开发中常见的 ‘.o’、’.a’、’.dSYM’、App包里的二进制执行文件、framework等都输入Mach-O文件的范畴。</p>
+<p>利用命令：$ file mach-o文件   可以得到Mach-O文件的类型</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">//查看app包里的二进制执行文件类型：Mach-O文件，64位，可执行文件，arm64架构</span><br><span class="line">Huangjb:Desktop mac$ file TestFishHook </span><br><span class="line">TestFishHook: Mach-O 64-bit executable arm64</span><br></pre></td></tr></table></figure>
+<p>查看Mach-O文件最方便的方法就是用MachOView.app查看。</p>
+<p><img src="/2019/04/03/Mach-O文件简介和fishhook原理解析/mach-o_file.jpg" alt="MachOView查看"></p>
+<p>可以看出Mach-O文件主要有三部分：</p>
+<ul>
+<li>mach header</li>
+<li>load commands</li>
+<li>raw datas</li>
+</ul>
+<h4 id="mach-header信息"><a href="#mach-header信息" class="headerlink" title="mach header信息"></a>mach header信息</h4><p><img src="/2019/04/03/Mach-O文件简介和fishhook原理解析/mach-header.jpg" alt="mach header"></p>
+<p>在mach/loader.h总定义了mach header相关的结构体：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">//32位 mach_header</span><br><span class="line">struct mach_header &#123;</span><br><span class="line">	uint32_t	magic;		/* mach magic number identifier */</span><br><span class="line">	cpu_type_t	cputype;	/* cpu specifier */</span><br><span class="line">	cpu_subtype_t	cpusubtype;	/* machine specifier */</span><br><span class="line">	uint32_t	filetype;	/* type of file */</span><br><span class="line">	uint32_t	ncmds;		/* number of load commands */</span><br><span class="line">	uint32_t	sizeofcmds;	/* the size of all the load commands */</span><br><span class="line">	uint32_t	flags;		/* flags */</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">***************** 参数解析 *****************</span><br><span class="line">magic：魔数</span><br><span class="line">有四种值：0xfeedface(MH_MAGIC：32位大端模式)，0xcefaedfe(MH_CIGAM：32位小端模式)</span><br><span class="line">				0xfeedfacf(MH_MAGIC_64：64位大端模式)，0xcffaedfe(MH_CIGAM_64：64小端模式)</span><br><span class="line">				</span><br><span class="line">cputype：cpu类型</span><br><span class="line"></span><br><span class="line">cpusubtype：cpu子类型</span><br><span class="line"></span><br><span class="line">filetype：mach-o文件类型，mach/loader.h中定义了文件类型对应的值</span><br><span class="line">#define	MH_OBJECT	0x1		/* relocatable object file */</span><br><span class="line">#define	MH_EXECUTE	0x2		/* demand paged executable file */</span><br><span class="line">#define	MH_FVMLIB	0x3		/* fixed VM shared library file */</span><br><span class="line">#define	MH_CORE		0x4		/* core file */</span><br><span class="line">#define	MH_PRELOAD	0x5		/* preloaded executable file */</span><br><span class="line">......</span><br><span class="line"></span><br><span class="line">ncmds：load commands的数量</span><br><span class="line"></span><br><span class="line">sizeofcmds：load commands区域的大小</span><br></pre></td></tr></table></figure>
+<h4 id="LoadCommands信息"><a href="#LoadCommands信息" class="headerlink" title="LoadCommands信息"></a>LoadCommands信息</h4><p>LoadCommands位于mach header后面，为dyld加载二进制文件到内存中提供信息。LoadCommands会告诉dyld从mach-o文件某个偏移处，加载多大的数据，加载到虚拟内存哪个地址等信息。可以说，load commands 是整个mach-o文件的蓝图。</p>
+<p>load commands有多种类型，不同类型的数据不一样。但是所有的类型都包含cmd和cmdsize两个信息，对应的结构体</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">struct load_command &#123;</span><br><span class="line">	uint32_t cmd;		/* 加载命令类型 */</span><br><span class="line">	uint32_t cmdsize;	/* 加载命令大小 */</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<p>load commands类型：</p>
+<ul>
+<li>_PAGEZERO：空指针陷阱？</li>
+<li>_TEXT: 程序代码段</li>
+<li>_DATA: 程序数据段可读写区</li>
+<li>_RODATA:程序只读数据段</li>
+<li>_LINKEDIT：链接编辑器段</li>
+<li>LC_SYMTAB：符号表信息</li>
+<li>LC_DYSYMTAB:动态符号表信息</li>
+<li>LC_LOAD_DYLINKER：dyld的路径，一般是/usr/lib/dyld，内核根据这个位置加载dyld</li>
+<li>LC_UUID:生成的唯一标识符</li>
+<li>LC_SOURCE_VERSION：版本信息</li>
+<li>LC_MAIN：程序执行的主函数入口</li>
+<li>LC_ENCRYPTION_INFO：加密信息，crpyt id为1表示加壳</li>
+<li>LC_LOAD_DYLIB：加载的动态库信息</li>
+<li>LC_CODE_SIGNATURE：文件的签名信息</li>
+</ul>
+<p>cmd类型为LC_SEGMENT的加载命令对应的结构体如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">struct segment_command &#123; /* for 32-bit architectures */</span><br><span class="line">	uint32_t	cmd;		/* cmd类型 */</span><br><span class="line">	uint32_t	cmdsize;	/* 大小 */</span><br><span class="line">	char		segname[16];	/* segment name */</span><br><span class="line">	uint32_t	vmaddr;		/* 虚拟内存地址 */</span><br><span class="line">	uint32_t	vmsize;		/* 占的虚拟内存大小 */</span><br><span class="line">	uint32_t	fileoff;	/* 在mach-o文件的偏移 */</span><br><span class="line">	uint32_t	filesize;	/* 在mach-o所占大小 */</span><br><span class="line">	vm_prot_t	maxprot;	/* 段的页面所需要的最高内存保护 */</span><br><span class="line">	vm_prot_t	initprot;	/* 段页面初始化的内存保护 */</span><br><span class="line">	uint32_t	nsects;		/* 包含的section数量 */</span><br><span class="line">	uint32_t	flags;		/* flags */</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<p>_TEXT、 _DATA、 _RODATA又包含若干个section。</p>
+<p>有几个section跟我们今天讨论的主题相关：</p>
+<ul>
+<li><p>_TEXT : __stubs 用于动态库链接的桩    </p>
+</li>
+<li><p>_TEXT : __stub_helper 用于动态库链接的桩的辅助</p>
+</li>
+<li><p>_DATA： __la_symbol_ptr 延迟加载符号指针表</p>
+</li>
+<li><p>_DATA： __nl_symbol_ptr 非延迟加载符号指针表</p>
+</li>
+</ul>
+<p>section对应的结构体：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">struct section &#123; /* for 32-bit architectures */</span><br><span class="line">	char		sectname[16];	/* section名字 */</span><br><span class="line">	char		segname[16];	/* section所在的segment名称 */</span><br><span class="line">	uint32_t	addr;		/* 虚拟内存地址 */</span><br><span class="line">	uint32_t	size;		/* section大小 */</span><br><span class="line">	uint32_t	offset;		/* 在mach-o文件的偏移 */</span><br><span class="line">	uint32_t	align;		/* 字节大小对齐 */</span><br><span class="line">	uint32_t	reloff;		/* 重定位入口的文件偏移 */</span><br><span class="line">	uint32_t	nreloc;		/* 需要重定位的入口数量 */</span><br><span class="line">	uint32_t	flags;		/* 包含section的type和attributes*/</span><br><span class="line">	uint32_t	reserved1;	/* reserved (for offset or index) */</span><br><span class="line">	uint32_t	reserved2;	/* reserved (for count or sizeof) */</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<h3 id="fishhook原理"><a href="#fishhook原理" class="headerlink" title="fishhook原理"></a>fishhook原理</h3><p>App调用外部库函数的时候，因为库函数是以动态库的形式存在于共享内存中，加上ASLR技术的影响，每次启动后内存地址都会有一个随机的偏移地址，所以在编译的时候并不能确定库函数的执行地址。</p>
+<p>所以，为了能够准确的访问到外部库函数的，苹果采用了一种叫做PIC(位置代码独立)技术。</p>
+<ul>
+<li><p>对于非懒加载符号表_nl_symbol_ptr，dyld会立刻马上去链接动态库</p>
+</li>
+<li><p>对于延迟加载符号表 _la_symbol_ptr，编译的时候会在Mach-O的数据段的_nl_symbol_ptr区保留一个指针(初始化全为0)，用来指向外部函数。后期，dyld会动态的设置这个指针指向外部库函数的内存地址</p>
+</li>
+<li>对于延迟加载的外部库函数，当我们在App中运行中第一次去调用库函数时，借助于_stubs -&gt; _la_symbol_ptr -&gt; _stub_helper -&gt; _nl_symbol_ptr的一系列跳转可以得到外部库函数的内存地址。随后dyld会把 _la_symbol_ptr直接指向外部库函数的内存地址(这也是 _la_symbol_ptr为什么叫做延迟加载区)</li>
+</ul>
+<p>_nl_symbol_ptr和 _la_symbol_ptr位于Mach-O的DATA段。用户可以去修改这两个区的数据，把这两个区的指针指向我们自定义的函数指针，达到hook的目的。fishhook就是基于这个原理。</p>
+<p><strong>注意：对于程序内部的C函数，函数地址在编译的时候就已经确定在了_TEXT代码段中，所以不能够修改，这也是fishhook不能hook内部C函数的原因！</strong></p>
+<h5 id="fishhook官方原理图"><a href="#fishhook官方原理图" class="headerlink" title="fishhook官方原理图"></a>fishhook官方原理图</h5><p><img src="/2019/04/03/Mach-O文件简介和fishhook原理解析/fishhook.png" alt=""></p>
+<h5 id="用法：-摘自github"><a href="#用法：-摘自github" class="headerlink" title="用法：(摘自github)"></a>用法：(<a href="https://github.com/facebook/fishhook" target="_blank" rel="noopener">摘自github</a>)</h5><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line">#import &lt;dlfcn.h&gt;</span><br><span class="line"></span><br><span class="line">#import &lt;UIKit/UIKit.h&gt;</span><br><span class="line"></span><br><span class="line">#import &quot;AppDelegate.h&quot;</span><br><span class="line">#import &quot;fishhook.h&quot;</span><br><span class="line"> </span><br><span class="line">//指针用来接收原系统close函数指针</span><br><span class="line">static int (*orig_close)(int);</span><br><span class="line">//指针用来接收原系统open函数指针</span><br><span class="line">static int (*orig_open)(const char *, int, ...);</span><br><span class="line"> </span><br><span class="line">//要替换系统close的函数</span><br><span class="line">int my_close(int fd) &#123;</span><br><span class="line">  printf(&quot;Calling real close(%d)\n&quot;, fd);</span><br><span class="line">  return orig_close(fd);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">//要替换系统open的函数</span><br><span class="line">int my_open(const char *path, int oflag, ...) &#123;</span><br><span class="line">  va_list ap = &#123;0&#125;;</span><br><span class="line">  mode_t mode = 0;</span><br><span class="line"> </span><br><span class="line">  if ((oflag &amp; O_CREAT) != 0) &#123;</span><br><span class="line">    // mode only applies to O_CREAT</span><br><span class="line">    va_start(ap, oflag);</span><br><span class="line">    mode = va_arg(ap, int);</span><br><span class="line">    va_end(ap);</span><br><span class="line">    printf(&quot;Calling real open(&apos;%s&apos;, %d, %d)\n&quot;, path, oflag, mode);</span><br><span class="line">    return orig_open(path, oflag, mode);</span><br><span class="line">  &#125; else &#123;</span><br><span class="line">    printf(&quot;Calling real open(&apos;%s&apos;, %d)\n&quot;, path, oflag);</span><br><span class="line">    return orig_open(path, oflag, mode);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"> </span><br><span class="line">int main(int argc, char * argv[])</span><br><span class="line">&#123;</span><br><span class="line">  @autoreleasepool &#123;</span><br><span class="line">    rebind_symbols((struct rebinding[2])&#123;&#123;&quot;close&quot;, my_close, (void *)&amp;orig_close&#125;, &#123;&quot;open&quot;, my_open, (void *)&amp;orig_open&#125;&#125;, 2);</span><br><span class="line"> </span><br><span class="line">    // Open our own binary and print out first 4 bytes (which is the same</span><br><span class="line">    // for all Mach-O binaries on a given architecture)</span><br><span class="line">    int fd = open(argv[0], O_RDONLY);</span><br><span class="line">    uint32_t magic_number = 0;</span><br><span class="line">    read(fd, &amp;magic_number, 4);</span><br><span class="line">    printf(&quot;Mach-O Magic Number: %x \n&quot;, magic_number);</span><br><span class="line">    close(fd);</span><br><span class="line"> </span><br><span class="line">    return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h5 id="源码解析："><a href="#源码解析：" class="headerlink" title="源码解析："></a>源码解析：</h5><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">//定义一个数据结构</span><br><span class="line">struct rebinding &#123;</span><br><span class="line">  const char *name;		//要重新绑定的的函数名称</span><br><span class="line">  void *replacement;	//替换的函数指针</span><br><span class="line">  void **replaced;		//定义一个指针指向原函数的地址</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">//定义一个链表节点数据结构</span><br><span class="line">struct rebindings_entry &#123;</span><br><span class="line">  struct rebinding *rebindings;		//rebinding数组指针</span><br><span class="line">  size_t rebindings_nel;					//要重新绑定的函数个数</span><br><span class="line">  struct rebindings_entry *next;	//链表节点next指针</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">//全局的重新绑定的链表头指针</span><br><span class="line">static struct rebindings_entry *_rebindings_head;</span><br><span class="line"></span><br><span class="line">static int prepend_rebindings(struct rebindings_entry **rebindings_head,</span><br><span class="line">                              struct rebinding rebindings[],</span><br><span class="line">                              size_t nel) &#123;</span><br><span class="line">  //新建一个链表节点                            </span><br><span class="line">  struct rebindings_entry *new_entry = (struct rebindings_entry *) malloc(sizeof(struct rebindings_entry));</span><br><span class="line">  if (!new_entry) &#123;</span><br><span class="line">    return -1;</span><br><span class="line">  &#125;</span><br><span class="line">  new_entry-&gt;rebindings = (struct rebinding *) malloc(sizeof(struct rebinding) * nel);</span><br><span class="line">  if (!new_entry-&gt;rebindings) &#123;</span><br><span class="line">    free(new_entry);</span><br><span class="line">    return -1;</span><br><span class="line">  &#125;</span><br><span class="line">  //把包含重新绑定信息的若干个rebinding设置到新建节点的rebindings成员</span><br><span class="line">  memcpy(new_entry-&gt;rebindings, rebindings, sizeof(struct rebinding) * nel);</span><br><span class="line">  //设置这个节点要重新绑定的函数的个数</span><br><span class="line">  new_entry-&gt;rebindings_nel = nel;</span><br><span class="line">  //新节点作为链表头，拼接本来的链表</span><br><span class="line">  new_entry-&gt;next = *rebindings_head;</span><br><span class="line">  *rebindings_head = new_entry;</span><br><span class="line">  return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">int rebind_symbols(struct rebinding rebindings[], size_t rebindings_nel) &#123;</span><br><span class="line">  //在链表头增加新的节点</span><br><span class="line">  int retval = prepend_rebindings(&amp;_rebindings_head, rebindings, rebindings_nel);</span><br><span class="line">  if (retval &lt; 0) &#123;</span><br><span class="line">    return retval;</span><br><span class="line">  &#125;</span><br><span class="line">  if (!_rebindings_head-&gt;next) &#123; </span><br><span class="line">    //首次调用，注册系统回调</span><br><span class="line">    _dyld_register_func_for_add_image(_rebind_symbols_for_image);</span><br><span class="line">  &#125; else &#123;</span><br><span class="line">    uint32_t c = _dyld_image_count();</span><br><span class="line">    for (uint32_t i = 0; i &lt; c; i++) &#123;</span><br><span class="line">      _rebind_symbols_for_image(_dyld_get_image_header(i), _dyld_get_image_vmaddr_slide(i));</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  return retval;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">//回调函数</span><br><span class="line">//const struct mach_header *header：mach_header的地址</span><br><span class="line">//intptr_t slide:slide ASLR随机偏移量</span><br><span class="line">static void _rebind_symbols_for_image(const struct mach_header *header,</span><br><span class="line">                                      intptr_t slide) &#123;                            </span><br><span class="line">    rebind_symbols_for_image(_rebindings_head, header, slide);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br></pre></td><td class="code"><pre><span class="line">static void rebind_symbols_for_image(struct rebindings_entry *rebindings,</span><br><span class="line">                                     const struct mach_header *header,</span><br><span class="line">                                     intptr_t slide) &#123;</span><br><span class="line">  Dl_info info;</span><br><span class="line">  if (dladdr(header, &amp;info) == 0) &#123;</span><br><span class="line">    return;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  segment_command_t *cur_seg_cmd;</span><br><span class="line">  segment_command_t *linkedit_segment = NULL;</span><br><span class="line">  struct symtab_command* symtab_cmd = NULL;</span><br><span class="line">  struct dysymtab_command* dysymtab_cmd = NULL;</span><br><span class="line"></span><br><span class="line">  //得到load command的起始地址</span><br><span class="line">  uintptr_t cur = (uintptr_t)header + sizeof(mach_header_t);</span><br><span class="line">  </span><br><span class="line">  //遍历load commands区域，得到linkedit_segment，symtab_cmd，dysymtab_cmd的地址</span><br><span class="line">  for (uint i = 0; i &lt; header-&gt;ncmds; i++, cur += cur_seg_cmd-&gt;cmdsize) &#123;</span><br><span class="line">    cur_seg_cmd = (segment_command_t *)cur;</span><br><span class="line">    //LC_SEGMENT指令</span><br><span class="line">    if (cur_seg_cmd-&gt;cmd == LC_SEGMENT_ARCH_DEPENDENT) &#123;  </span><br><span class="line">      //__LINKEDIT段</span><br><span class="line">      if (strcmp(cur_seg_cmd-&gt;segname, SEG_LINKEDIT) == 0) &#123;</span><br><span class="line">      	//记录__LINKEDIT段地址</span><br><span class="line">        linkedit_segment = cur_seg_cmd;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125; else if (cur_seg_cmd-&gt;cmd == LC_SYMTAB) &#123; //符号表</span><br><span class="line">    	//记录symtab地址</span><br><span class="line">      symtab_cmd = (struct symtab_command*)cur_seg_cmd;</span><br><span class="line">    &#125; else if (cur_seg_cmd-&gt;cmd == LC_DYSYMTAB) &#123;//动态符号表</span><br><span class="line">    	//记录dysymtab地址</span><br><span class="line">      dysymtab_cmd = (struct dysymtab_command*)cur_seg_cmd;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  if (!symtab_cmd || !dysymtab_cmd || !linkedit_segment ||</span><br><span class="line">      !dysymtab_cmd-&gt;nindirectsyms) &#123;</span><br><span class="line">    return;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  //确定ASLR随机偏移后，mach-header的内存地址</span><br><span class="line">  uintptr_t linkedit_base = (uintptr_t)slide + linkedit_segment-&gt;vmaddr - linkedit_segment-&gt;fileoff;</span><br><span class="line">  </span><br><span class="line">  //计算Symbol Table的位置</span><br><span class="line">  nlist_t *symtab = (nlist_t *)(linkedit_base + symtab_cmd-&gt;symoff);</span><br><span class="line">  </span><br><span class="line">  //计算String Table的位置</span><br><span class="line">  char *strtab = (char *)(linkedit_base + symtab_cmd-&gt;stroff);</span><br><span class="line"></span><br><span class="line">  //计算Dynamic Symbol Table的位置 </span><br><span class="line">  uint32_t *indirect_symtab = (uint32_t *)(linkedit_base + dysymtab_cmd-&gt;indirectsymoff);</span><br><span class="line"></span><br><span class="line">  cur = (uintptr_t)header + sizeof(mach_header_t);</span><br><span class="line">  //再一次遍历load commands区域</span><br><span class="line">  for (uint i = 0; i &lt; header-&gt;ncmds; i++, cur += cur_seg_cmd-&gt;cmdsize) &#123;</span><br><span class="line">    cur_seg_cmd = (segment_command_t *)cur;</span><br><span class="line">    //LC_SEGMENT</span><br><span class="line">    if (cur_seg_cmd-&gt;cmd == LC_SEGMENT_ARCH_DEPENDENT) &#123;</span><br><span class="line">      //跳过不是DATA段的load command</span><br><span class="line">      if (strcmp(cur_seg_cmd-&gt;segname, SEG_DATA) != 0 &amp;&amp;</span><br><span class="line">          strcmp(cur_seg_cmd-&gt;segname, SEG_DATA_CONST) != 0) &#123;</span><br><span class="line">        continue;</span><br><span class="line">      &#125;</span><br><span class="line">      //遍历load command中__DATA中的section</span><br><span class="line">      for (uint j = 0; j &lt; cur_seg_cmd-&gt;nsects; j++) &#123;</span><br><span class="line">        section_t *sect =</span><br><span class="line">          (section_t *)(cur + sizeof(segment_command_t)) + j;</span><br><span class="line">          //__la_symbol_ptr区</span><br><span class="line">        if ((sect-&gt;flags &amp; SECTION_TYPE) == S_LAZY_SYMBOL_POINTERS) &#123;</span><br><span class="line">          perform_rebinding_with_section(rebindings, sect, slide, symtab, strtab, indirect_symtab);</span><br><span class="line">        &#125;</span><br><span class="line">        //__nl_symbol_ptr区</span><br><span class="line">        if ((sect-&gt;flags &amp; SECTION_TYPE) == S_NON_LAZY_SYMBOL_POINTERS) &#123;</span><br><span class="line">          perform_rebinding_with_section(rebindings, sect, slide, symtab, strtab, indirect_symtab);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line">//fishhook通过函数名找到函数指针并替换</span><br><span class="line">static void perform_rebinding_with_section(struct rebindings_entry *rebindings,</span><br><span class="line">                                           section_t *section,</span><br><span class="line">                                           intptr_t slide,</span><br><span class="line">                                           nlist_t *symtab,</span><br><span class="line">                                           char *strtab,</span><br><span class="line">                                           uint32_t *indirect_symtab) &#123;</span><br><span class="line">  //获取__la_symbol_ptr区或__nl_symbol_ptr在indirect symtab表中的起始地址                                     </span><br><span class="line">  uint32_t *indirect_symbol_indices = indirect_symtab + section-&gt;reserved1;</span><br><span class="line">  </span><br><span class="line">  //计算__la_symbol_ptr区或__nl_symbol_ptr区内存地址</span><br><span class="line">  void **indirect_symbol_bindings = (void **)((uintptr_t)slide + section-&gt;addr);</span><br><span class="line">  </span><br><span class="line">  //计算（延时/非延时）加载区的大小，并遍历</span><br><span class="line">  for (uint i = 0; i &lt; section-&gt;size / sizeof(void *); i++) &#123;</span><br><span class="line">    uint32_t symtab_index = indirect_symbol_indices[i];</span><br><span class="line">    if (symtab_index == INDIRECT_SYMBOL_ABS || symtab_index == INDIRECT_SYMBOL_LOCAL ||</span><br><span class="line">        symtab_index == (INDIRECT_SYMBOL_LOCAL   | INDIRECT_SYMBOL_ABS)) &#123;</span><br><span class="line">      continue;</span><br><span class="line">    &#125;</span><br><span class="line">    //获取符号在String Table中的偏移</span><br><span class="line">    uint32_t strtab_offset = symtab[symtab_index].n_un.n_strx;</span><br><span class="line">    //获取符号名字</span><br><span class="line">    char *symbol_name = strtab + strtab_offset;</span><br><span class="line">    //_是符号的开始，&apos;\0&apos;是字符串结束符，所以一个合法的符号至少要包含&apos;_&apos;和除&apos;\0&apos;以外的其他字符</span><br><span class="line">    bool symbol_name_longer_than_1 = symbol_name[0] &amp;&amp; symbol_name[1];</span><br><span class="line">    struct rebindings_entry *cur = rebindings;</span><br><span class="line">    while (cur) &#123;</span><br><span class="line">     //遍历链表，将替换成新实现，保存老实现 </span><br><span class="line">      for (uint j = 0; j &lt; cur-&gt;rebindings_nel; j++) &#123;</span><br><span class="line">      	//匹配函数名，strcmp比较字符串函数，碰到&apos;\0&apos;字符函数结束，字符串相等返回0</span><br><span class="line">        if (strcmp(&amp;symbol_name[1], cur-&gt;rebindings[j].name) == 0) &#123;</span><br><span class="line">          if (cur-&gt;rebindings[j].replaced != NULL &amp;&amp;</span><br><span class="line">              indirect_symbol_bindings[i] != cur-&gt;rebindings[j].replacement) &#123;</span><br><span class="line">              //保存绑定前的函数指针</span><br><span class="line">            *(cur-&gt;rebindings[j].replaced) = indirect_symbol_bindings[i];</span><br><span class="line">          &#125;</span><br><span class="line">          //替换新实现函数指针</span><br><span class="line">          indirect_symbol_bindings[i] = cur-&gt;rebindings[j].replacement;</span><br><span class="line">          goto symbol_loop;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">      cur = cur-&gt;next;</span><br><span class="line">    &#125;</span><br><span class="line">  symbol_loop:;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/03/28/arm64汇编简单笔记/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="DevHuangjb">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="黄锦标的博客">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/03/28/arm64汇编简单笔记/" itemprop="url">arm64汇编简单笔记</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-03-28T15:17:25+08:00">
+                2019-03-28
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/iOS/" itemprop="url" rel="index">
+                    <span itemprop="name">iOS</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p>学汇编最主要的是要搞懂：寄存器，指令和堆栈三个方面。</p>
+<p>iPhone5S后，苹果都采用ARM64架构。</p>
+<p>本文主要介绍ARM64汇编寄存器和常用指令集。</p>
+<h3 id="寄存器"><a href="#寄存器" class="headerlink" title="寄存器"></a>寄存器</h3><p>ARM64架构中共有34个寄存器,包括31个通用寄存器、SP、PC、CPSR。</p>
+<ul>
+<li><p>R0-R30通用寄存器</p>
+<p>每个寄存器最多可以存取一个64位大小的数。以x0-x30形式使用时是64位的，以w0-w30形式使用时是32位的。</p>
+<p>其中，R0-R7作为函数的参数，R0保存函数的返回值</p>
+<p>其中，R8寄存器用来保存子程序的返回值</p>
+<p>其中，R29又称FP寄存器(frame point)，主要用来保存栈帧（栈底）指针；</p>
+<p>其中，R30又称LR寄存器(link register)，主要用来保存函数返回地址</p>
+</li>
+<li><p>SP：栈顶指针</p>
+</li>
+<li><p>PC：类似于8086汇编中的IP寄存器，用来记录当前执行的指令地址</p>
+</li>
+<li><p>CPSR：状态寄存器，用来标记运算各种标记</p>
+</li>
+</ul>
+<h3 id="指令集"><a href="#指令集" class="headerlink" title="指令集"></a>指令集</h3><ul>
+<li><p>MOV 指令</p>
+<p>mov x0, x1：把寄存器r1的值赋给寄存器r0</p>
+<p>mov w0, #0x1122：把0x1122写进r1的低16位</p>
+<p>movk   w0, #0x3344, lsl #16：0x3344作为w0的16-32位值</p>
+</li>
+<li><p>ADD 加法指令</p>
+<p>ADD{条件}{S} 目的寄存器，操作数 1，操作数 2；指令用于把两个操作数相加，并将结果存放到目的寄存器中</p>
+<p>ADD x0，x1，x2： x0 = x1 + x2<br> ADD x0，x1，#256：x0 = x1 + 256<br> ADD x0，x2，x3，LSL#1：x0 = x2 + x3&lt;&lt;1</p>
+</li>
+<li><p>SUB 减法指令</p>
+<p>SUB{条件}{S} 目的寄存器，操作数 1，操作数 2</p>
+</li>
+<li><p>AND 逻辑与指令</p>
+<p>AND{条件}{S} 目的寄存器，操作数 1，操作数 2</p>
+</li>
+<li><p>ORR 逻辑或指令</p>
+<p>ORR{条件}{S} 目的寄存器，操作数 1，操作数 2</p>
+</li>
+<li><p>EOR 逻辑异或指令</p>
+<p>ORR{条件}{S} 目的寄存器，操作数 1，操作数 2</p>
+</li>
+<li><p>LDR 存储器到寄存器的数据传输指令</p>
+<p>LDR{条件} 目的寄存器，&lt;存储器地址&gt;</p>
+</li>
+<li><p>STR 寄存器到存储器的数据传输指令</p>
+<p>STR{条件} 源寄存器，&lt;存储器地址&gt;</p>
+</li>
+<li><p>LDP 存储器连续读两个单元到两个寄存器</p>
+<p>LDP 寄存器1， 寄存器2，&lt;存储器地址&gt;</p>
+</li>
+<li><p>STP 把两个寄存器的值连续放在某个内存地址后</p>
+<p>STP 寄存器1， 寄存器2，&lt;存储器地址&gt;</p>
+</li>
+<li><p>CMP 比较指令</p>
+<p>CMP{条件} 操作数 1，操作数 2</p>
+<p>CMP 指令用于把一个寄存器的内容和另一个寄存器的内容或立即数进行比较，同时更新 CPSR 中 </p>
+<p>条件标志位的值。该指令进行一次减法运算，但不存储结果，只更改条件标志位。标志位表示的是 操作数 1 与操作数 2 的关系(大、小、相等) 。</p>
+</li>
+<li><p>B 跳转指令</p>
+<p>把要跳转的指令地址赋给PC寄存器</p>
+</li>
+<li><p>BL带返回地址的跳转指令</p>
+<p>把要跳转的指令地址赋给PC寄存器，同时把下一个指令地址(返回地址)赋给LR寄存器</p>
+</li>
+<li><p>RET 子程序退出返回指令</p>
+</li>
+</ul>
+<p><strong><em>在后面学习中有遇到其他指令会更新</em></strong></p>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/03/21/从汇编层面分析函数调用/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="DevHuangjb">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="黄锦标的博客">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/03/21/从汇编层面分析函数调用/" itemprop="url">从汇编层面分析函数调用</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-03-21T17:30:53+08:00">
+                2019-03-21
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/iOS/" itemprop="url" rel="index">
+                    <span itemprop="name">iOS</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p>这篇文章将探讨：</p>
+<ul>
+<li>函数调用如何返回</li>
+<li>函数返回值底层实现</li>
+<li>函数参数传递底层实现</li>
+<li>函数调用堆栈平衡</li>
+</ul>
+<p>你需要知道：</p>
+<ul>
+<li>pc：程序计数器，记录当前执行的代码地址，对其赋值会跳转到对应的地址执行</li>
+<li>lr (r30)：连接寄存器，当执行ret指令时，lr寄存器的值会赋给pc寄存器</li>
+<li>fp (r29)：frame point寄存器，用来保存栈底指针</li>
+<li>sp：stack point寄存器，用来保存栈顶指针</li>
+<li>通用寄存器r0-r7作为函数调用的参数传递，如果参数大于8个就用栈空间来辅助</li>
+<li>通用寄存器r0通常作为函数返回值的中转站</li>
+</ul>
+<h4 id="函数调用如何返回？"><a href="#函数调用如何返回？" class="headerlink" title="函数调用如何返回？"></a>函数调用如何返回？</h4><p>写一个最简单的没有传递参数，没有返回值的函数</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">#import &lt;Foundation/Foundation.h&gt;</span><br><span class="line"></span><br><span class="line">void test()&#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    </span><br><span class="line">    test();</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来看看这个简单调用在汇编层面的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">    0x10000e920 &lt;+0&gt;:  sub    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x10000e924 &lt;+4&gt;:  stp    x29, x30, [sp, #0x10]</span><br><span class="line">    0x10000e928 &lt;+8&gt;:  add    x29, sp, #0x10            ; =0x10 </span><br><span class="line">    0x10000e92c &lt;+12&gt;: stur   wzr, [x29, #-0x4]</span><br><span class="line">    0x10000e930 &lt;+16&gt;: str    w0, [sp, #0x8]</span><br><span class="line">    0x10000e934 &lt;+20&gt;: str    x1, [sp]</span><br><span class="line">    </span><br><span class="line">-&gt;  0x10000e938 &lt;+24&gt;: bl     0x10000e91c               ; test at main.m:12</span><br><span class="line">    0x10000e93c &lt;+28&gt;: mov    w0, #0x0</span><br><span class="line">    </span><br><span class="line">    0x10000e940 &lt;+32&gt;: ldp    x29, x30, [sp, #0x10]</span><br><span class="line">    0x10000e944 &lt;+36&gt;: add    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x10000e948 &lt;+40&gt;: ret    </span><br><span class="line">    </span><br><span class="line">TestStack`test:</span><br><span class="line">-&gt;  0x10008691c &lt;+0&gt;: ret </span><br><span class="line"></span><br><span class="line"> ********************分析***********************</span><br><span class="line"> 把断点打在‘bl 0x10000e91c’</span><br><span class="line"> (lldb) register read</span><br><span class="line">        lr = 0x00000001993968b8  libdyld.dylib`start + 4</span><br><span class="line">        pc = 0x00000001000f6938  TestStack`main + 24 at main.m:16</span><br><span class="line"> (lldb) si</span><br><span class="line"> (lldb) register read</span><br><span class="line">General Purpose Registers:</span><br><span class="line">        lr = 0x00000001000f693c  TestStack`main + 28 at main.m:16</span><br><span class="line">        pc = 0x00000001000f691c  TestStack`test at main.m:12</span><br><span class="line"> </span><br><span class="line"> 可以看出执行‘bl 0x10000e91c’后，pc寄存器被赋值0x00000001000f691c,程序跳转到test函数执行</span><br><span class="line"> lr寄存器被赋值0x00000001000f693c，而这个地址正好是main函数里面‘bl 0x10000e91c’的下一条指令</span><br><span class="line"> 所以在test函数里面执行ret指令后，lr寄存器的值赋给pc寄存器实现函数调用的返回。</span><br></pre></td></tr></table></figure>
+<h4 id="函数如何把返回值返回给调用者？"><a href="#函数如何把返回值返回给调用者？" class="headerlink" title="函数如何把返回值返回给调用者？"></a>函数如何把返回值返回给调用者？</h4><p>改一下test函数，让它简单的返回一个值，比如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">int test()&#123;</span><br><span class="line">    return 10;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    int result = test();</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来看看在汇编层面的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">    0x100076918 &lt;+0&gt;:  sub    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x10007691c &lt;+4&gt;:  stp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x100076920 &lt;+8&gt;:  add    x29, sp, #0x20            ; =0x20 </span><br><span class="line">    0x100076924 &lt;+12&gt;: stur   wzr, [x29, #-0x4]</span><br><span class="line">    0x100076928 &lt;+16&gt;: stur   w0, [x29, #-0x8]</span><br><span class="line">    0x10007692c &lt;+20&gt;: str    x1, [sp, #0x10]</span><br><span class="line">    </span><br><span class="line">-&gt;  0x100076930 &lt;+24&gt;: bl     0x100076910               ; test at main.m:11</span><br><span class="line">    0x100076934 &lt;+28&gt;: mov    w8, #0x0</span><br><span class="line">    0x100076938 &lt;+32&gt;: str    w0, [sp, #0xc]</span><br><span class="line">    0x10007693c &lt;+36&gt;: mov    x0, x8</span><br><span class="line">    </span><br><span class="line">    0x100076940 &lt;+40&gt;: ldp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x100076944 &lt;+44&gt;: add    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x100076948 &lt;+48&gt;: ret    </span><br><span class="line">    </span><br><span class="line">TestStack`test:</span><br><span class="line">-&gt;  0x100076910 &lt;+0&gt;: mov    w0, #0xa</span><br><span class="line">    0x100076914 &lt;+4&gt;: ret   </span><br><span class="line">    </span><br><span class="line">********************分析***********************</span><br><span class="line">我们在test函数里面简单的返回了10</span><br><span class="line">在汇编层面，‘mov w0, #0xa’把0xa赋值给x0寄存器的低32位</span><br><span class="line">在子程序执行返回后，调用函数通过读取x0寄存器的值拿到子程序的返回值，比如main函数里面‘str w0, [sp, #0xc]’就是把w0寄存器的值赋给局部变量</span><br></pre></td></tr></table></figure>
+<h4 id="函数如何实现参数的传递？"><a href="#函数如何实现参数的传递？" class="headerlink" title="函数如何实现参数的传递？"></a>函数如何实现参数的传递？</h4><p>再一次修改test函数如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">void test(int para1, int para2, int para3, int para4, int para5, int para6, int para7, int para8, int para9)&#123;</span><br><span class="line">    int a = 8;</span><br><span class="line">    a = a + para1 + para2 + para3 + para4 + para5 + para6 + para7 + para8 + para9;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    test(1,2,3,4,5,6,7,8,9);</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来看看在汇编层面的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">    0x1000be8ec &lt;+0&gt;:  sub    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x1000be8f0 &lt;+4&gt;:  stp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x1000be8f4 &lt;+8&gt;:  add    x29, sp, #0x20            ; =0x20 </span><br><span class="line">    0x1000be8f8 &lt;+12&gt;: orr    w8, wzr, #0x1							;1赋给r8</span><br><span class="line">    0x1000be8fc &lt;+16&gt;: orr    w9, wzr, #0x2							;2赋给r9</span><br><span class="line">    0x1000be900 &lt;+20&gt;: orr    w2, wzr, #0x3							;3赋给r2</span><br><span class="line">    0x1000be904 &lt;+24&gt;: orr    w3, wzr, #0x4							;4赋给r3</span><br><span class="line">    0x1000be908 &lt;+28&gt;: mov    w4, #0x5									;5赋给r4</span><br><span class="line">    0x1000be90c &lt;+32&gt;: orr    w5, wzr, #0x6							;6赋给r5</span><br><span class="line">    0x1000be910 &lt;+36&gt;: orr    w6, wzr, #0x7							;7赋给r6</span><br><span class="line">    0x1000be914 &lt;+40&gt;: orr    w7, wzr, #0x8							;8赋给r7</span><br><span class="line">    0x1000be918 &lt;+44&gt;: mov    w10, #0x9									;9赋给r10</span><br><span class="line">    0x1000be91c &lt;+48&gt;: stur   wzr, [x29, #-0x4]</span><br><span class="line">    0x1000be920 &lt;+52&gt;: stur   w0, [x29, #-0x8]</span><br><span class="line">    0x1000be924 &lt;+56&gt;: str    x1, [sp, #0x10]</span><br><span class="line">    0x1000be928 &lt;+60&gt;: mov    x0, x8										;r8(值为1)赋给r0</span><br><span class="line">    0x1000be92c &lt;+64&gt;: mov    x1, x9										;r8(值为2)赋给r0</span><br><span class="line">    0x1000be930 &lt;+68&gt;: str    w10, [sp]									;把r10(值为9)的值入栈，</span><br><span class="line">    ;在跳转到test函数前：r0-r7响应的被复制1-8，</span><br><span class="line">    0x1000be934 &lt;+72&gt;: bl     0x1000be860               ; test at main.m:11</span><br><span class="line">    0x1000be938 &lt;+76&gt;: mov    w8, #0x0</span><br><span class="line">    0x1000be93c &lt;+80&gt;: mov    x0, x8</span><br><span class="line">    0x1000be940 &lt;+84&gt;: ldp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x1000be944 &lt;+88&gt;: add    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x1000be948 &lt;+92&gt;: ret  </span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">TestStack`test:</span><br><span class="line">    0x1000be860 &lt;+0&gt;:   sub    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x1000be864 &lt;+4&gt;:   ldr    w8, [sp, #0x30]			;main函数把para9入栈，这里把para9的值从栈空间读出来赋给r8			</span><br><span class="line">-&gt;  0x1000be868 &lt;+8&gt;:   orr    w9, wzr, #0x8        ;局部变量‘a=8’，r9=8</span><br><span class="line">    0x1000be86c &lt;+12&gt;:  str    w0, [sp, #0x2c]			;r0(para1)的值入栈</span><br><span class="line">    0x1000be870 &lt;+16&gt;:  str    w1, [sp, #0x28]			;r1(para2)的值入栈</span><br><span class="line">    0x1000be874 &lt;+20&gt;:  str    w2, [sp, #0x24]			;r2(para3)的值入栈</span><br><span class="line">    0x1000be878 &lt;+24&gt;:  str    w3, [sp, #0x20]			;r3(para4)的值入栈</span><br><span class="line">    0x1000be87c &lt;+28&gt;:  str    w4, [sp, #0x1c]			;r4(para5)的值入栈</span><br><span class="line">    0x1000be880 &lt;+32&gt;:  str    w5, [sp, #0x18]			;r5(para6)的值入栈</span><br><span class="line">    0x1000be884 &lt;+36&gt;:  str    w6, [sp, #0x14]			;r5(para7)的值入栈</span><br><span class="line">    0x1000be888 &lt;+40&gt;:  str    w7, [sp, #0x10]			;r7(para8)的值入栈</span><br><span class="line">    0x1000be88c &lt;+44&gt;:  str    w9, [sp, #0xc]				;局部变量a入栈</span><br><span class="line">    0x1000be890 &lt;+48&gt;:  ldr    w9, [sp, #0xc]				;从栈空间取出局部变量的值</span><br><span class="line">    0x1000be894 &lt;+52&gt;:  ldr    w0, [sp, #0x2c]			;从栈空间取出para1的值</span><br><span class="line">    0x1000be898 &lt;+56&gt;:  add    w9, w9, w0						;加法运算：局部变量a = a + para1</span><br><span class="line">    0x1000be89c &lt;+60&gt;:  ldr    w0, [sp, #0x28]			;从栈空间取出para2的值</span><br><span class="line">    0x1000be8a0 &lt;+64&gt;:  add    w9, w9, w0						;加法运算：局部变量a = a + para2</span><br><span class="line">    0x1000be8a4 &lt;+68&gt;:  ldr    w0, [sp, #0x24]			;......以下操作一样</span><br><span class="line">    0x1000be8a8 &lt;+72&gt;:  add    w9, w9, w0</span><br><span class="line">    0x1000be8ac &lt;+76&gt;:  ldr    w0, [sp, #0x20]</span><br><span class="line">    0x1000be8b0 &lt;+80&gt;:  add    w9, w9, w0</span><br><span class="line">    0x1000be8b4 &lt;+84&gt;:  ldr    w0, [sp, #0x1c]</span><br><span class="line">    0x1000be8b8 &lt;+88&gt;:  add    w9, w9, w0</span><br><span class="line">    0x1000be8bc &lt;+92&gt;:  ldr    w0, [sp, #0x18]</span><br><span class="line">    0x1000be8c0 &lt;+96&gt;:  add    w9, w9, w0</span><br><span class="line">    0x1000be8c4 &lt;+100&gt;: ldr    w0, [sp, #0x14]</span><br><span class="line">    0x1000be8c8 &lt;+104&gt;: add    w9, w9, w0</span><br><span class="line">    0x1000be8cc &lt;+108&gt;: ldr    w0, [sp, #0x10]</span><br><span class="line">    0x1000be8d0 &lt;+112&gt;: add    w9, w9, w0</span><br><span class="line">    0x1000be8d4 &lt;+116&gt;: ldr    w0, [sp, #0x30]</span><br><span class="line">    0x1000be8d8 &lt;+120&gt;: add    w9, w9, w0</span><br><span class="line">    0x1000be8dc &lt;+124&gt;: str    w9, [sp, #0xc]</span><br><span class="line">    0x1000be8e0 &lt;+128&gt;: str    w8, [sp, #0x8]</span><br><span class="line">    0x1000be8e4 &lt;+132&gt;: add    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x1000be8e8 &lt;+136&gt;: ret     </span><br><span class="line">    </span><br><span class="line">********************分析***********************</span><br><span class="line">从上面的分析过程可以看出，函数参数首先会使用通用寄存器r0-r7，当传递的参数超过8个的时候，会借助函数的栈空间来辅助实现参数的传递</span><br></pre></td></tr></table></figure>
+<h4 id="函数调用的堆栈平衡？"><a href="#函数调用的堆栈平衡？" class="headerlink" title="函数调用的堆栈平衡？"></a>函数调用的堆栈平衡？</h4><p>我们知道，函数调用的时候，系统会为该函数分配一个栈空间，在函数执行结束后栈空间会被系统回收。那么，系统底层是如何实现这个机制的呢？</p>
+<p>函数根据是否调用子函数分为：</p>
+<ul>
+<li>叶子函数(没有调用其他子函数)</li>
+<li>非叶子函数(有调用其他子函数)</li>
+</ul>
+<h5 id="先来分析下叶子函数的堆栈平衡"><a href="#先来分析下叶子函数的堆栈平衡" class="headerlink" title="先来分析下叶子函数的堆栈平衡"></a>先来分析下叶子函数的堆栈平衡</h5><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">int sum (int a, int b) &#123;</span><br><span class="line">    return a+b;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    int result = sum(4, 5);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>汇编：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">    0x100062910 &lt;+0&gt;:  sub    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x100062914 &lt;+4&gt;:  stp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x100062918 &lt;+8&gt;:  add    x29, sp, #0x20            ; =0x20 </span><br><span class="line">    0x10006291c &lt;+12&gt;: orr    w8, wzr, #0x4</span><br><span class="line">    0x100062920 &lt;+16&gt;: mov    w9, #0x5</span><br><span class="line">    0x100062924 &lt;+20&gt;: stur   w0, [x29, #-0x4]</span><br><span class="line">    0x100062928 &lt;+24&gt;: str    x1, [sp, #0x10]</span><br><span class="line">    0x10006292c &lt;+28&gt;: mov    x0, x8</span><br><span class="line">    0x100062930 &lt;+32&gt;: mov    x1, x9</span><br><span class="line">    0x100062934 &lt;+36&gt;: bl     0x1000628f0               ; sum at main.m:11</span><br><span class="line">    0x100062938 &lt;+40&gt;: mov    w8, #0x0</span><br><span class="line">    0x10006293c &lt;+44&gt;: str    w0, [sp, #0xc]</span><br><span class="line">    0x100062940 &lt;+48&gt;: mov    x0, x8</span><br><span class="line">    0x100062944 &lt;+52&gt;: ldp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x100062948 &lt;+56&gt;: add    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x10006294c &lt;+60&gt;: ret   </span><br><span class="line">    </span><br><span class="line">TestStack`sum:</span><br><span class="line">		;sp = sp - 0x10，栈顶指针下移16个内存单元，也就是系统为sum函数开辟了16个字节的栈空间大小</span><br><span class="line">-&gt;  0x1000628f0 &lt;+0&gt;:  sub    sp, sp, #0x10         </span><br><span class="line">		;w0存的是函数参数‘int a’,下面把参数a 入栈</span><br><span class="line">    0x1000628f4 &lt;+4&gt;:  str    w0, [sp, #0xc]</span><br><span class="line">    ;w1存的是函数参数‘int b’,下面把参数b 入栈</span><br><span class="line">    0x1000628f8 &lt;+8&gt;:  str    w1, [sp, #0x8]</span><br><span class="line">    ;从栈空间中读出参数a的值，赋给w0</span><br><span class="line">    0x1000628fc &lt;+12&gt;: ldr    w0, [sp, #0xc]</span><br><span class="line">    ;从栈空间中读出参数b的值，赋给w1</span><br><span class="line">    0x100062900 &lt;+16&gt;: ldr    w1, [sp, #0x8]</span><br><span class="line">    ;w0 = a + b，函数返回，外部函数通过w0拿到计算值</span><br><span class="line">    0x100062904 &lt;+20&gt;: add    w0, w0, w1</span><br><span class="line">    ;栈顶指针上移16个内存单元，栈空间实现平衡。刚进入sum函数开辟的16个字节的栈空间被回收(看上去像是被回收，实际只是上移了栈顶指针，内存内容依旧存在，等到后面其他函数的栈空间分配时才会对这段栈空间内存进行设置)</span><br><span class="line">    0x100062908 &lt;+24&gt;: add    sp, sp, #0x10             ; =0x10 </span><br><span class="line">    0x10006290c &lt;+28&gt;: ret</span><br></pre></td></tr></table></figure>
+<p>再来看看非叶子函数如何实现堆栈平衡</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">int sum (int a, int b) &#123;</span><br><span class="line">    return a+b;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">void test (int a, int b) &#123;</span><br><span class="line">    int c = sum(a, b);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    test(4, 6);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>汇编：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">		;register read读取main函数进来后:</span><br><span class="line">		;fp = 0x000000016fdf79e0</span><br><span class="line">		;sp = 0x000000016fdf79d0</span><br><span class="line">    0x100076914 &lt;+0&gt;:  sub    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x100076918 &lt;+4&gt;:  stp    x29, x30, [sp, #0x10]</span><br><span class="line">    0x10007691c &lt;+8&gt;:  add    x29, sp, #0x10            ; =0x10 </span><br><span class="line">    0x100076920 &lt;+12&gt;: orr    w8, wzr, #0x4</span><br><span class="line">    0x100076924 &lt;+16&gt;: orr    w9, wzr, #0x6</span><br><span class="line">    0x100076928 &lt;+20&gt;: stur   w0, [x29, #-0x4]</span><br><span class="line">    0x10007692c &lt;+24&gt;: str    x1, [sp]</span><br><span class="line">    0x100076930 &lt;+28&gt;: mov    x0, x8</span><br><span class="line">    0x100076934 &lt;+32&gt;: mov    x1, x9</span><br><span class="line">    0x100076938 &lt;+36&gt;: bl     0x1000768e4               ; test at main.m:15</span><br><span class="line">    0x10007693c &lt;+40&gt;: mov    w8, #0x0</span><br><span class="line">    0x100076940 &lt;+44&gt;: mov    x0, x8</span><br><span class="line">    0x100076944 &lt;+48&gt;: ldp    x29, x30, [sp, #0x10]</span><br><span class="line">    0x100076948 &lt;+52&gt;: add    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x10007694c &lt;+56&gt;: ret  </span><br><span class="line">    </span><br><span class="line">TestStack`test:</span><br><span class="line">		;fp = 0x000000016fdf79e0</span><br><span class="line">		;sp = sp - 0x20 = 0x000000016fdf79b0</span><br><span class="line">    0x1000768e4 &lt;+0&gt;:  sub    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    ;现场保护，把main函数执行时的fp(x29),lr(x30)入栈保存：这两个寄存器关系到main函数执行时的栈底指针和main函数执行后的返回地址，很重要</span><br><span class="line">-&gt;  0x1000768e8 &lt;+4&gt;:  stp    x29, x30, [sp, #0x10]</span><br><span class="line">		;设置自己的fp(栈底指针)</span><br><span class="line">    0x1000768ec &lt;+8&gt;:  add    x29, sp, #0x10            ; =0x10 </span><br><span class="line">    0x1000768f0 &lt;+12&gt;: stur   w0, [x29, #-0x4]</span><br><span class="line">    0x1000768f4 &lt;+16&gt;: str    w1, [sp, #0x8]</span><br><span class="line">    0x1000768f8 &lt;+20&gt;: ldur   w0, [x29, #-0x4]</span><br><span class="line">    0x1000768fc &lt;+24&gt;: ldr    w1, [sp, #0x8]</span><br><span class="line">    ;跳转到sum函数</span><br><span class="line">    0x100076900 &lt;+28&gt;: bl     0x1000768c4               ; sum at main.m:11</span><br><span class="line">    ;sum函数把返回值放在r0寄存器，这边把返回值赋给局部变量‘int c’</span><br><span class="line">    0x100076904 &lt;+32&gt;: str    w0, [sp, #0x4]</span><br><span class="line">    ;恢复现场，把入栈保存的main函数fp,lr指针出栈恢复</span><br><span class="line">    0x100076908 &lt;+36&gt;: ldp    x29, x30, [sp, #0x10]</span><br><span class="line">    ;栈顶指针上移32个内存单元，栈空间实现平衡。</span><br><span class="line">    0x10007690c &lt;+40&gt;: add    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x100076910 &lt;+44&gt;: ret   </span><br><span class="line">    </span><br><span class="line">TestStack`sum:</span><br><span class="line">-&gt;  0x1000768c4 &lt;+0&gt;:  sub    sp, sp, #0x10             ; =0x10 </span><br><span class="line">    0x1000768c8 &lt;+4&gt;:  str    w0, [sp, #0xc]</span><br><span class="line">    0x1000768cc &lt;+8&gt;:  str    w1, [sp, #0x8]</span><br><span class="line">    0x1000768d0 &lt;+12&gt;: ldr    w0, [sp, #0xc]</span><br><span class="line">    0x1000768d4 &lt;+16&gt;: ldr    w1, [sp, #0x8]</span><br><span class="line">    0x1000768d8 &lt;+20&gt;: add    w0, w0, w1</span><br><span class="line">    0x1000768dc &lt;+24&gt;: add    sp, sp, #0x10             ; =0x10 </span><br><span class="line">    0x1000768e0 &lt;+28&gt;: ret</span><br></pre></td></tr></table></figure>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/03/20/记一个安装Charles证书的大坑/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
@@ -556,6 +1166,21 @@
 </li>
 </ul>
 <p>更多的lldb命令请参考官方文档：<a href="http://lldb.llvm.org/lldb-gdb.html" target="_blank" rel="noopener">文档</a></p>
+<h3 id="lldb汇编层面常用调试命令"><a href="#lldb汇编层面常用调试命令" class="headerlink" title="lldb汇编层面常用调试命令"></a>lldb汇编层面常用调试命令</h3><ul>
+<li><p>register read 读取所以寄存器的值</p>
+</li>
+<li><p>register write w0 0x8 把值写进寄存器</p>
+</li>
+<li><p>x命令读取内存内容</p>
+<p>命令格式：x/nfu obj</p>
+<p>n：代表要读取几个单元</p>
+<p>f：显示方式，有如下值</p>
+<p>| 参数 | 含义                       |<br>| —- | ————————– |<br>| x    | 按十六进制格式显示变量     |<br>| d    | 按十进制格式显示变量       |<br>| u    | 按十进制格式显示无符号整型 |<br>| o    | 按八进制格式显示变量       |<br>| t    | 按二进制格式显示变量       |<br>| a    | 按十六进制格式显示变量     |<br>| i    | 指令地址格式               |<br>| c    | 按字符格式显示变量         |<br>| f    | 按浮点数格式显示变量       |</p>
+<p>u：表示一个单元的长度</p>
+<p>| 参数 | 含义             |<br>| —- | —————- |<br>| b    | 按单字节分段输出 |<br>| h    | 按双字节分段输出 |<br>| w    | 按四字节分段输出 |<br>| g    | 按八字节分段输出 |</p>
+<p>obj：表示内存地址，可以是变量名，也可以是内存地址。</p>
+</li>
+</ul>
 <h3 id="Chisel"><a href="#Chisel" class="headerlink" title="Chisel"></a>Chisel</h3><p>Chisel是facebook开源的辅助动态调试iOS APP的LLDB命令集合。详细文档参考 <a href="https://github.com/facebook/chisel/wiki" target="_blank" rel="noopener">github wiki</a></p>
 <p>下面我举几个比较常用：</p>
 <ul>
@@ -1674,490 +2299,13 @@
 
 
     
-      
-
-  
-
-  
-  
-  
-
-  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
-  
-  
-  
-  <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/31/SDWebImage解析之SDWebImageDownloaderOperation/">
-
-    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="DevHuangjb">
-      <meta itemprop="description" content="">
-      <meta itemprop="image" content="/images/avatar.gif">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="黄锦标的博客">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h1 class="post-title" itemprop="name headline">
-                
-                <a class="post-title-link" href="/2018/12/31/SDWebImage解析之SDWebImageDownloaderOperation/" itemprop="url">SDWebImage解析之SDWebImageDownloaderOperation</a></h1>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">Posted on</span>
-              
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-31T12:57:31+08:00">
-                2018-12-31
-              </time>
-            
-
-            
-
-            
-          </span>
-
-          
-            <span class="post-category">
-            
-              <span class="post-meta-divider">|</span>
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">In</span>
-              
-              
-                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
-                  <a href="/categories/iOS/" itemprop="url" rel="index">
-                    <span itemprop="name">iOS</span>
-                  </a>
-                </span>
-
-                
-                
-              
-            </span>
-          
-
-          
-            
-          
-
-          
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          
-            <p>根据我阅读源码的习惯，我会先阅读比较核心的，并且没有或者较少引入其他文件的类。所以，就让我们先从SDWebImageDownloaderOperation说起吧。</p>
-<p>在iOS9.0之后，苹果推出了NSUrlSession，并推荐开发者用NSUrlSession替代NSUrlConnection。如果我们自己用NSUrlSession来请求图片，主要有：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:nil];</span><br><span class="line">NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@&quot;http://pic27.nipic.com/20130329/890845_115317964000_2.jpg&quot;]];</span><br><span class="line">NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:request];</span><br><span class="line">[dataTask resume];</span><br></pre></td></tr></table></figure>
-<p>delegateQueue：为执行代理方法的队列，不指定session默认会创建一个<strong>serial operation queue</strong> </p>
-<p>在回调的代理方法中处理数据</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">#pragma mark NSURLSessionDataDelegate</span><br><span class="line">- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data &#123;</span><br><span class="line">    [self.imageData appendData:data];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error &#123;</span><br><span class="line">    UIImage *image = [UIImage imageWithData:self.imageData];</span><br><span class="line">    dispatch_async(dispatch_get_main_queue(), ^&#123;</span><br><span class="line">        self.imageView.image = image;</span><br><span class="line">    &#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p><strong>SDWebImageDownloaderOperation是NSOperaion的子类，就是用来封装上面的下载操作</strong></p>
-<p>先来看看SDWebImageDownloaderOperation.h</p>
-<p>文件一开始向外部暴露了四个通知：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">//下载开始</span><br><span class="line">FOUNDATION_EXPORT NSString * _Nonnull const SDWebImageDownloadStartNotification;</span><br><span class="line">//接受到服务器响应</span><br><span class="line">FOUNDATION_EXPORT NSString * _Nonnull const SDWebImageDownloadReceiveResponseNotification;</span><br><span class="line">//下载停止</span><br><span class="line">FOUNDATION_EXPORT NSString * _Nonnull const SDWebImageDownloadStopNotification;</span><br><span class="line">//下载结束</span><br><span class="line">FOUNDATION_EXPORT NSString * _Nonnull const SDWebImageDownloadFinishNotification;</span><br></pre></td></tr></table></figure>
-<p>在UIView+WebCache分类中，就是对SDWebImageDownloadStartNotification和SDWebImageDownloadFinishNotification通知的监听来添加和移除UIActivityIndicatorView 。</p>
-<p>在SDWebImageDownloaderOperation.h头文件中，定义了SDWebImageDownloaderOperationInterface 协议。我们可以继承NSOperation同时遵守SDWebImageDownloaderOperationInterface协议来自定义下载操作类。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">@protocol SDWebImageDownloaderOperationInterface&lt;NSObject&gt;</span><br><span class="line">- (nonnull instancetype)initWithRequest:(nullable NSURLRequest *)request</span><br><span class="line">                              inSession:(nullable NSURLSession *)session</span><br><span class="line">                                options:(SDWebImageDownloaderOptions)options;</span><br><span class="line">//为下载操作添加下载中和下载完成的回调</span><br><span class="line">- (nullable id)addHandlersForProgress:(nullable SDWebImageDownloaderProgressBlock)progressBlock</span><br><span class="line">                            completed:(nullable SDWebImageDownloaderCompletedBlock)completedBlock;</span><br><span class="line">//是否需要对下载的图片进行预解码</span><br><span class="line">- (BOOL)shouldDecompressImages;</span><br><span class="line">- (void)setShouldDecompressImages:(BOOL)value;</span><br><span class="line">//https证书</span><br><span class="line">- (nullable NSURLCredential *)credential;</span><br><span class="line">- (void)setCredential:(nullable NSURLCredential *)value;</span><br><span class="line">//取消下载操作</span><br><span class="line">- (BOOL)cancel:(nullable id)token;</span><br><span class="line">@end</span><br></pre></td></tr></table></figure>
-<p>在SDWebImageDownloaderOperation类的私有拓展中包含以下属性：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">//包含下载操作回调block的数组</span><br><span class="line">@property (strong, nonatomic, nonnull) NSMutableArray&lt;SDCallbacksDictionary *&gt; *callbackBlocks;</span><br><span class="line">//下载运行中</span><br><span class="line">@property (assign, nonatomic, getter = isExecuting) BOOL executing;</span><br><span class="line">//下载结束</span><br><span class="line">@property (assign, nonatomic, getter = isFinished) BOOL finished;</span><br><span class="line">//拼接的数据</span><br><span class="line">@property (strong, nonatomic, nullable) NSMutableData *imageData;</span><br><span class="line">//使用NSUrlCache缓存的数据</span><br><span class="line">@property (copy, nonatomic, nullable) NSData *cachedData;</span><br><span class="line">//外部注入的NSURLSession，因为在SDWebImageDownloader中已经对这个session强引用，所有使用weak</span><br><span class="line">@property (weak, nonatomic, nullable) NSURLSession *unownedSession;</span><br><span class="line">//如果外部没有注入session，内部会自己实例化一个session，并负责这个session的生命周期</span><br><span class="line">@property (strong, nonatomic, nullable) NSURLSession *ownedSession;</span><br><span class="line">//通过UrlRequest生成的dataTask请求任务</span><br><span class="line">@property (strong, nonatomic, readwrite, nullable) NSURLSessionTask *dataTask;</span><br><span class="line">//为保证在多线程环境下操作callbackBlocks的数据安全提供的锁</span><br><span class="line">@property (strong, nonatomic, nonnull) dispatch_semaphore_t callbacksLock; </span><br><span class="line">//对图片进行解码的队列</span><br><span class="line">@property (strong, nonatomic, nonnull) dispatch_queue_t coderQueue;</span><br><span class="line">#if SD_UIKIT</span><br><span class="line">//app退到后台后向UIApplication注册的后台任务标识，可以获得一些额外的下载时间</span><br><span class="line">@property (assign, nonatomic) UIBackgroundTaskIdentifier backgroundTaskId;</span><br><span class="line">#endif</span><br><span class="line">//对图片进行渐进式解码的解码器</span><br><span class="line">@property (strong, nonatomic, nullable) id&lt;SDWebImageProgressiveCoder&gt; progressiveCoder;</span><br></pre></td></tr></table></figure>
-<p>下面来看一下SDWebImageDownloaderOperation的构造函数：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">- (nonnull instancetype)init &#123;</span><br><span class="line">    return [self initWithRequest:nil inSession:nil options:0];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (nonnull instancetype)initWithRequest:(nullable NSURLRequest *)request</span><br><span class="line">                              inSession:(nullable NSURLSession *)session</span><br><span class="line">                                options:(SDWebImageDownloaderOptions)options &#123;</span><br><span class="line">    if ((self = [super init])) &#123;</span><br><span class="line">        _request = [request copy];</span><br><span class="line">        //默认需要对图片进行预解码</span><br><span class="line">        _shouldDecompressImages = YES;</span><br><span class="line">        _options = options;</span><br><span class="line">        _callbackBlocks = [NSMutableArray new];</span><br><span class="line">        _executing = NO;</span><br><span class="line">        _finished = NO;</span><br><span class="line">        _expectedSize = 0;</span><br><span class="line">        _unownedSession = session;</span><br><span class="line">        _callbacksLock = dispatch_semaphore_create(1);</span><br><span class="line">        _coderQueue = dispatch_queue_create(&quot;com.hackemist.SDWebImageDownloaderOperationCoderQueue&quot;, DISPATCH_QUEUE_SERIAL);</span><br><span class="line">    &#125;</span><br><span class="line">    return self;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>为SDWebImageDownloaderOperation添加回调block:</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">- (nullable id)addHandlersForProgress:(nullable SDWebImageDownloaderProgressBlock)progressBlock</span><br><span class="line">                            completed:(nullable SDWebImageDownloaderCompletedBlock)completedBlock &#123;</span><br><span class="line">    SDCallbacksDictionary *callbacks = [NSMutableDictionary new];</span><br><span class="line">    if (progressBlock) callbacks[kProgressCallbackKey] = [progressBlock copy];</span><br><span class="line">    if (completedBlock) callbacks[kCompletedCallbackKey] = [completedBlock copy];</span><br><span class="line">    LOCK(self.callbacksLock);</span><br><span class="line">    [self.callbackBlocks addObject:callbacks];</span><br><span class="line">    UNLOCK(self.callbacksLock);</span><br><span class="line">    return callbacks;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>progressBlock和completeBlock最终会以@{@”progress “:progressBlock,@”completed”:completedBlock}的形式添加callbackBlocks数组。</p>
-<p>下面是通过字符串来获取所有的progressBlock或者所有的completedBlock：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">- (nullable NSArray&lt;id&gt; *)callbacksForKey:(NSString *)key &#123;</span><br><span class="line">    LOCK(self.callbacksLock);</span><br><span class="line">    //NSArray对KVC的拓展，所有元素都会执行valueForKey: 方法，并把结果添加到数组返回。如果valueForKey:返回nil，则会把NSNull添加进数组。</span><br><span class="line">    NSMutableArray&lt;id&gt; *callbacks = [[self.callbackBlocks valueForKey:key] mutableCopy];</span><br><span class="line">    UNLOCK(self.callbacksLock);</span><br><span class="line">    // We need to remove [NSNull null] because there might not always be a progress block for each callback</span><br><span class="line">    [callbacks removeObjectIdenticalTo:[NSNull null]];</span><br><span class="line">    return [callbacks copy]; // strip mutability here</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>下面的代码是移除某一组回调的block:</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">- (BOOL)cancel:(nullable id)token &#123;</span><br><span class="line">    BOOL shouldCancel = NO;</span><br><span class="line">    LOCK(self.callbacksLock);</span><br><span class="line">    [self.callbackBlocks removeObjectIdenticalTo:token];</span><br><span class="line">    if (self.callbackBlocks.count == 0) &#123;</span><br><span class="line">    	//当所有的回调都被移除，就没有下载的必要了。</span><br><span class="line">        shouldCancel = YES;</span><br><span class="line">    &#125;</span><br><span class="line">    UNLOCK(self.callbacksLock);</span><br><span class="line">    if (shouldCancel) &#123;</span><br><span class="line">        [self cancel];</span><br><span class="line">    &#125;</span><br><span class="line">    return shouldCancel;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>下面来看看[self cancel]做了什么：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">- (void)cancel &#123;</span><br><span class="line">    @synchronized (self) &#123;</span><br><span class="line">        [self cancelInternal];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)cancelInternal &#123;</span><br><span class="line">    if (self.isFinished) return;</span><br><span class="line">    //把operation置为取消状态</span><br><span class="line">    [super cancel];</span><br><span class="line"></span><br><span class="line">    if (self.dataTask) &#123;</span><br><span class="line">    	//取消下载任务</span><br><span class="line">        [self.dataTask cancel];</span><br><span class="line">        __weak typeof(self) weakSelf = self;</span><br><span class="line">        dispatch_async(dispatch_get_main_queue(), ^&#123;</span><br><span class="line">            [[NSNotificationCenter defaultCenter] postNotificationName:SDWebImageDownloadStopNotification object:weakSelf];</span><br><span class="line">        &#125;);</span><br><span class="line">        if (self.isExecuting) self.executing = NO;</span><br><span class="line">        if (!self.isFinished) self.finished = YES;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    [self reset];</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)reset &#123;</span><br><span class="line">    LOCK(self.callbacksLock);</span><br><span class="line">    //移除所有回调</span><br><span class="line">    [self.callbackBlocks removeAllObjects];</span><br><span class="line">    UNLOCK(self.callbacksLock);</span><br><span class="line">    //释放请求任务</span><br><span class="line">    self.dataTask = nil;</span><br><span class="line">    if (self.ownedSession) &#123;</span><br><span class="line">    	//释放内部生产的session</span><br><span class="line">        [self.ownedSession invalidateAndCancel];</span><br><span class="line">        self.ownedSession = nil;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>主要就是对取消之后资源的管理和状态的维护。</p>
-<p>下面来看看最主要的start方法，当SDWebImageDownloaderOperation添加到并发队列，就会调用start方法。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br></pre></td><td class="code"><pre><span class="line">- (void)start &#123;</span><br><span class="line">    @synchronized (self) &#123;</span><br><span class="line">    	//如果operatin被取消，置位finished标志，并释放资源</span><br><span class="line">        if (self.isCancelled) &#123;</span><br><span class="line">            self.finished = YES;</span><br><span class="line">            [self reset];</span><br><span class="line">            return;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">#flag:注册后台任务</span><br><span class="line">#if SD_UIKIT</span><br><span class="line">        Class UIApplicationClass = NSClassFromString(@&quot;UIApplication&quot;);</span><br><span class="line">        BOOL hasApplication = UIApplicationClass &amp;&amp; [UIApplicationClass respondsToSelector:@selector(sharedApplication)];</span><br><span class="line">        if (hasApplication &amp;&amp; [self shouldContinueWhenAppEntersBackground]) &#123;</span><br><span class="line">            __weak __typeof__ (self) wself = self;</span><br><span class="line">            UIApplication * app = [UIApplicationClass performSelector:@selector(sharedApplication)];</span><br><span class="line">            //当app即将退到后台，想UIApplication注册一个后台执行的任务，以获取额外的操作时间</span><br><span class="line">            self.backgroundTaskId = [app beginBackgroundTaskWithExpirationHandler:^&#123;</span><br><span class="line">                __strong __typeof (wself) sself = wself;</span><br><span class="line">                if (sself) &#123;</span><br><span class="line">                	//当额外的时间后仍没有完成下载任务，则取消掉任务</span><br><span class="line">                    [sself cancel];</span><br><span class="line">                    [app endBackgroundTask:sself.backgroundTaskId];</span><br><span class="line">                    sself.backgroundTaskId = UIBackgroundTaskInvalid;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;];</span><br><span class="line">        &#125;</span><br><span class="line">#endif</span><br><span class="line">        NSURLSession *session = self.unownedSession;</span><br><span class="line">        if (!session) &#123;</span><br><span class="line">        	//如果外部没有注入session，内部负责生成并管理一个session</span><br><span class="line">            NSURLSessionConfiguration *sessionConfig = [NSURLSessionConfiguration defaultSessionConfiguration];</span><br><span class="line">            //SDWebImage默认的超时时间为15秒</span><br><span class="line">            sessionConfig.timeoutIntervalForRequest = 15;</span><br><span class="line">            session = [NSURLSession sessionWithConfiguration:sessionConfig</span><br><span class="line">                                                    delegate:self</span><br><span class="line">                                               delegateQueue:nil];</span><br><span class="line">            self.ownedSession = session;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        if (self.options &amp; SDWebImageDownloaderIgnoreCachedResponse) &#123;</span><br><span class="line">            NSURLCache *URLCache = session.configuration.URLCache;</span><br><span class="line">            if (!URLCache) &#123;</span><br><span class="line">                URLCache = [NSURLCache sharedURLCache];</span><br><span class="line">            &#125;</span><br><span class="line">            NSCachedURLResponse *cachedResponse;</span><br><span class="line">            @synchronized (URLCache) &#123;</span><br><span class="line">            	//根据请求拿到缓存的响应</span><br><span class="line">                cachedResponse = [URLCache cachedResponseForRequest:self.request];</span><br><span class="line">            &#125;</span><br><span class="line">            if (cachedResponse) &#123;</span><br><span class="line">            	//拿到NSUrlCache缓存的响应对应的数据</span><br><span class="line">                self.cachedData = cachedResponse.data;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">      	//实例化下载任务</span><br><span class="line">        self.dataTask = [session dataTaskWithRequest:self.request];</span><br><span class="line">    	//设为运行中</span><br><span class="line">        self.executing = YES;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    if (self.dataTask) &#123;</span><br><span class="line">#pragma clang diagnostic push</span><br><span class="line">#pragma clang diagnostic ignored &quot;-Wunguarded-availability&quot;</span><br><span class="line">        if ([self.dataTask respondsToSelector:@selector(setPriority:)]) &#123;</span><br><span class="line">        	//根据下载配置参数设置下载任务的优先级</span><br><span class="line">            if (self.options &amp; SDWebImageDownloaderHighPriority) &#123;</span><br><span class="line">                self.dataTask.priority = NSURLSessionTaskPriorityHigh;</span><br><span class="line">            &#125; else if (self.options &amp; SDWebImageDownloaderLowPriority) &#123;</span><br><span class="line">                self.dataTask.priority = NSURLSessionTaskPriorityLow;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">#pragma clang diagnostic pop</span><br><span class="line">		//开始下载任务</span><br><span class="line">        [self.dataTask resume];</span><br><span class="line">        for (SDWebImageDownloaderProgressBlock progressBlock in [self callbacksForKey:kProgressCallbackKey]) &#123;</span><br><span class="line">            progressBlock(0, NSURLResponseUnknownLength, self.request.URL);</span><br><span class="line">        &#125;</span><br><span class="line">        __weak typeof(self) weakSelf = self;</span><br><span class="line">        dispatch_async(dispatch_get_main_queue(), ^&#123;</span><br><span class="line">        	//下载开始通知</span><br><span class="line">            [[NSNotificationCenter defaultCenter] postNotificationName:SDWebImageDownloadStartNotification object:weakSelf];</span><br><span class="line">        &#125;);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">    	//如果下载任务实例化失败，则以错误的状态调用completedBlock回调</span><br><span class="line">        [self callCompletionBlocksWithError:[NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorUnknown userInfo:@&#123;NSLocalizedDescriptionKey : @&quot;Task can&apos;t be initialized&quot;&#125;]];</span><br><span class="line">        [self done];</span><br><span class="line">        return;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">#从&quot;flag:注册后台任务&quot;到这行代码区间的代码，就是app退到后台向UIApplication注册的backgroundTask</span><br><span class="line">#if SD_UIKIT</span><br><span class="line">    Class UIApplicationClass = NSClassFromString(@&quot;UIApplication&quot;);</span><br><span class="line">    if(!UIApplicationClass || ![UIApplicationClass respondsToSelector:@selector(sharedApplication)]) &#123;</span><br><span class="line">        return;</span><br><span class="line">    &#125;</span><br><span class="line">    if (self.backgroundTaskId != UIBackgroundTaskInvalid) &#123;</span><br><span class="line">        UIApplication * app = [UIApplication performSelector:@selector(sharedApplication)];</span><br><span class="line">        [app endBackgroundTask:self.backgroundTaskId];</span><br><span class="line">        self.backgroundTaskId = UIBackgroundTaskInvalid;</span><br><span class="line">    &#125;</span><br><span class="line">#endif</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>执行start后下载开始，接下来就是监听NSURLSessionDelegate 的代理方法来处理数据了。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line">//接受到服务器响应数据</span><br><span class="line">- (void)URLSession:(NSURLSession *)session</span><br><span class="line">          dataTask:(NSURLSessionDataTask *)dataTask</span><br><span class="line">didReceiveResponse:(NSURLResponse *)response</span><br><span class="line"> completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler &#123;</span><br><span class="line">    NSURLSessionResponseDisposition disposition = NSURLSessionResponseAllow;</span><br><span class="line">    //请求的图片大小</span><br><span class="line">    NSInteger expected = (NSInteger)response.expectedContentLength;</span><br><span class="line">    expected = expected &gt; 0 ? expected : 0;</span><br><span class="line">    self.expectedSize = expected;</span><br><span class="line">    self.response = response;</span><br><span class="line">    NSInteger statusCode = [response respondsToSelector:@selector(statusCode)] ? ((NSHTTPURLResponse *)response).statusCode : 200;</span><br><span class="line">    BOOL valid = statusCode &lt; 400;</span><br><span class="line">    //&apos;304 Not Modified&apos;代表资源未改变，本地又没有NSUrlCache缓存的数据，当成非法请求看待</span><br><span class="line">    if (statusCode == 304 &amp;&amp; !self.cachedData) &#123;</span><br><span class="line">        valid = NO;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    if (valid) &#123;</span><br><span class="line">    	//如果响应有效，则回调处理所有progressBlock</span><br><span class="line">        for (SDWebImageDownloaderProgressBlock progressBlock in [self callbacksForKey:kProgressCallbackKey]) &#123;</span><br><span class="line">            progressBlock(0, expected, self.request.URL);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">        //取消后续下载</span><br><span class="line">        disposition = NSURLSessionResponseCancel;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    __weak typeof(self) weakSelf = self;</span><br><span class="line">    dispatch_async(dispatch_get_main_queue(), ^&#123;</span><br><span class="line">        [[NSNotificationCenter defaultCenter] postNotificationName:SDWebImageDownloadReceiveResponseNotification object:weakSelf];</span><br><span class="line">    &#125;);</span><br><span class="line">    </span><br><span class="line">    if (completionHandler) &#123;</span><br><span class="line">        completionHandler(disposition);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line">//接受到下载的数据包</span><br><span class="line">- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data &#123;</span><br><span class="line">    if (!self.imageData) &#123;</span><br><span class="line">        self.imageData = [[NSMutableData alloc] initWithCapacity:self.expectedSize];</span><br><span class="line">    &#125;</span><br><span class="line">    //数据拼接</span><br><span class="line">    [self.imageData appendData:data];</span><br><span class="line">	//如果配置渐进式的下载，则对当前数据进行渐进式解码</span><br><span class="line">    if ((self.options &amp; SDWebImageDownloaderProgressiveDownload) &amp;&amp; self.expectedSize &gt; 0) &#123;</span><br><span class="line">        __block NSData *imageData = [self.imageData copy];</span><br><span class="line">        const NSInteger totalSize = imageData.length;</span><br><span class="line">        BOOL finished = (totalSize &gt;= self.expectedSize);</span><br><span class="line">        if (!self.progressiveCoder) &#123;</span><br><span class="line">        	//实例化解码器</span><br><span class="line">            for (id&lt;SDWebImageCoder&gt;coder in [SDWebImageCodersManager sharedInstance].coders) &#123;</span><br><span class="line">                if ([coder conformsToProtocol:@protocol(SDWebImageProgressiveCoder)] &amp;&amp;</span><br><span class="line">                    [((id&lt;SDWebImageProgressiveCoder&gt;)coder) canIncrementallyDecodeFromData:imageData]) &#123;</span><br><span class="line">                    self.progressiveCoder = [[[coder class] alloc] init];</span><br><span class="line">                    break;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        //解码是一个耗时的操作，在解码队列上异步解码图片</span><br><span class="line">        dispatch_async(self.coderQueue, ^&#123;</span><br><span class="line">            UIImage *image = [self.progressiveCoder incrementallyDecodedImageWithData:imageData finished:finished];</span><br><span class="line">            if (image) &#123;</span><br><span class="line">                NSString *key = [[SDWebImageManager sharedManager] cacheKeyForURL:self.request.URL];</span><br><span class="line">                image = [self scaledImageForKey:key image:image];</span><br><span class="line">                //如果需要，对图片进行预绘制解码</span><br><span class="line">                if (self.shouldDecompressImages) &#123;</span><br><span class="line">                    image = [[SDWebImageCodersManager sharedInstance] decompressedImageWithImage:image data:&amp;imageData options:@&#123;SDWebImageCoderScaleDownLargeImagesKey: @(NO)&#125;];</span><br><span class="line">                &#125;</span><br><span class="line">                //每次解码调用completedBlock进行UIView的渲染</span><br><span class="line">                [self callCompletionBlocksWithImage:image imageData:nil error:nil finished:NO];</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">	//回调处理所有progressBlock</span><br><span class="line">    for (SDWebImageDownloaderProgressBlock progressBlock in [self callbacksForKey:kProgressCallbackKey]) &#123;</span><br><span class="line">        progressBlock(self.imageData.length, self.expectedSize, self.request.URL);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><span class="line">//下载完成的回调</span><br><span class="line">- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error &#123;</span><br><span class="line">    @synchronized(self) &#123;</span><br><span class="line">        self.dataTask = nil;</span><br><span class="line">        __weak typeof(self) weakSelf = self;</span><br><span class="line">        dispatch_async(dispatch_get_main_queue(), ^&#123;</span><br><span class="line">        	//发送下载停止通知</span><br><span class="line">            [[NSNotificationCenter defaultCenter] postNotificationName:SDWebImageDownloadStopNotification object:weakSelf];</span><br><span class="line">            if (!error) &#123;</span><br><span class="line">            	//如果下载没有错误，发送下载完成通知</span><br><span class="line">                [[NSNotificationCenter defaultCenter] postNotificationName:SDWebImageDownloadFinishNotification object:weakSelf];</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    //下载出错，以错误的状态调用completedBlock，同时把operation设置finished状态</span><br><span class="line">    if (error) &#123;</span><br><span class="line">        [self callCompletionBlocksWithError:error];</span><br><span class="line">        [self done];</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">        if ([self callbacksForKey:kCompletedCallbackKey].count &gt; 0) &#123;</span><br><span class="line">            __block NSData *imageData = [self.imageData copy];</span><br><span class="line">            if (imageData) &#123;</span><br><span class="line">            	//这边为什么下载数据等于缓存数据要以nil调用completedBlock不是很懂，希望了解的人告知一二</span><br><span class="line">                if (self.options &amp; SDWebImageDownloaderIgnoreCachedResponse &amp;&amp; [self.cachedData isEqualToData:imageData]) &#123;</span><br><span class="line">                    [self callCompletionBlocksWithImage:nil imageData:nil error:nil finished:YES];</span><br><span class="line">                    [self done];</span><br><span class="line">                &#125; else &#123;</span><br><span class="line">                    // 在解码队列上异步解码图片</span><br><span class="line">                    dispatch_async(self.coderQueue, ^&#123;</span><br><span class="line">                        UIImage *image = [[SDWebImageCodersManager sharedInstance] decodedImageWithData:imageData];</span><br><span class="line">                        NSString *key = [[SDWebImageManager sharedManager] cacheKeyForURL:self.request.URL];</span><br><span class="line">                        image = [self scaledImageForKey:key image:image];</span><br><span class="line">                        </span><br><span class="line">                        BOOL shouldDecode = YES;</span><br><span class="line">                        // GIFs and WebPs不支持解码</span><br><span class="line">                        if (image.images) &#123;</span><br><span class="line">                            shouldDecode = NO;</span><br><span class="line">                        &#125; else &#123;</span><br><span class="line">#ifdef SD_WEBP</span><br><span class="line">                            SDImageFormat imageFormat = [NSData sd_imageFormatForImageData:imageData];</span><br><span class="line">                            if (imageFormat == SDImageFormatWebP) &#123;</span><br><span class="line">                                shouldDecode = NO;</span><br><span class="line">                            &#125;</span><br><span class="line">#endif</span><br><span class="line">                        &#125;</span><br><span class="line">                        </span><br><span class="line">                        if (shouldDecode) &#123;</span><br><span class="line">                        	//如果需要，预绘制解码图片</span><br><span class="line">                            if (self.shouldDecompressImages) &#123;</span><br><span class="line">                                BOOL shouldScaleDown = self.options &amp; SDWebImageDownloaderScaleDownLargeImages;</span><br><span class="line">                                image = [[SDWebImageCodersManager sharedInstance] decompressedImageWithImage:image data:&amp;imageData options:@&#123;SDWebImageCoderScaleDownLargeImagesKey: @(shouldScaleDown)&#125;];</span><br><span class="line">                            &#125;</span><br><span class="line">                        &#125;</span><br><span class="line">                        CGSize imageSize = image.size;</span><br><span class="line">                        if (imageSize.width == 0 || imageSize.height == 0) &#123;</span><br><span class="line">                        	//当下载的图片大小为0，以错误的状态回调completedBlock</span><br><span class="line">                            [self callCompletionBlocksWithError:[NSError errorWithDomain:SDWebImageErrorDomain code:0 userInfo:@&#123;NSLocalizedDescriptionKey : @&quot;Downloaded image has 0 pixels&quot;&#125;]];</span><br><span class="line">                        &#125; else &#123;</span><br><span class="line">                        	//回调函数completedBlock处理下载的图片</span><br><span class="line">                            [self callCompletionBlocksWithImage:image imageData:imageData error:nil finished:YES];</span><br><span class="line">                        &#125;</span><br><span class="line">                        [self done];</span><br><span class="line">                    &#125;);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; else &#123;</span><br><span class="line">            	//当下载的图片为空，以错误的状态回调completedBlock</span><br><span class="line">                [self callCompletionBlocksWithError:[NSError errorWithDomain:SDWebImageErrorDomain code:0 userInfo:@&#123;NSLocalizedDescriptionKey : @&quot;Image data is nil&quot;&#125;]];</span><br><span class="line">                [self done];</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">            [self done];</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>细心的你可能会发现，这些代理方法只是对ownedSession而言，那么对于unownedSession 如何监听呢？unownedSession代理方法由SDWebImageDownloader监听，然后一一转发到SDWebImageDownloaderOperation的代理方法中进行处理。这些我们在SDWebImageDownloader的解析中将会看到。</p>
-<p>以上关于解码的部分只是一笔略过，以后会专门写一篇。</p>
-
-          
-        
-      
-    </div>
-    
-    
-    
-
-    
-
-    
-
-    
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </div>
-  
-  
-  
-  </article>
-
-
-    
-      
-
-  
-
-  
-  
-  
-
-  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
-  
-  
-  
-  <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/28/SDWebImage源码解析/">
-
-    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="DevHuangjb">
-      <meta itemprop="description" content="">
-      <meta itemprop="image" content="/images/avatar.gif">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="黄锦标的博客">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h1 class="post-title" itemprop="name headline">
-                
-                <a class="post-title-link" href="/2018/12/28/SDWebImage源码解析/" itemprop="url">SDWebImage源码解析</a></h1>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">Posted on</span>
-              
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-28T17:16:28+08:00">
-                2018-12-28
-              </time>
-            
-
-            
-
-            
-          </span>
-
-          
-            <span class="post-category">
-            
-              <span class="post-meta-divider">|</span>
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">In</span>
-              
-              
-                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
-                  <a href="/categories/iOS/" itemprop="url" rel="index">
-                    <span itemprop="name">iOS</span>
-                  </a>
-                </span>
-
-                
-                
-              
-            </span>
-          
-
-          
-            
-          
-
-          
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          
-            <blockquote>
-<p>要想成为优秀，要先模仿优秀，书法如此，代码也如此。<br>我们总可以在阅读优秀源码有所收获，你会发现，原来，代码可以这么写！</p>
-</blockquote>
-<p>接触iOS开发的同学都接触过这个框架。SDWebImage作者精简的接口设计极大的简化了我们开发中有关图片的需求场景。正因为这样，不少开发者对SDWebImage仅仅停留在使用上面，而没有去剖析框架。</p>
-<p>我们先来看下SDWebImage架构图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImageArchitecture.png" alt="架构图"><br>从框架图可以看出主要包括：</p>
-<ul>
-<li>核心类: SDWebImageManager</li>
-<li>图片下载：SDWebImageDownloader</li>
-<li>图片缓存：SdImageCache</li>
-<li>UIKit拓展分类：UIView，UIImageView，UIButton等分类</li>
-<li>图片编解码类：SDWebImageCodersManager</li>
-<li>其他辅助类</li>
-</ul>
-<p>从功能上来看，各个类的职责都很清晰。</p>
-<p>下面来看一下SDWebImage工作的时序图：<br><img src="/2018/12/28/SDWebImage源码解析/SDWebImage_sequence.png" alt="时序图"><br>主业务线：UIImageView通过调用UIView:sd_internalSetImageWithURL；然后调用SDWebImageManager:loadImageWithUrl；SDWebImageManager去查询SdImageCache是否有图片，如果有直接返回图片，如果没有调用SDWebImageDownloader下载图片；SDWebImageDownloader下载完图片会调用SDImageCache对图片进行缓存。</p>
-<p>具体的细节后面将会在各个模块的专题中解析。</p>
-
-          
-        
-      
-    </div>
-    
-    
-    
-
-    
-
-    
-
-    
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </div>
-  
-  
-  
-  </article>
-
-
-    
-      
-
-  
-
-  
-  
-  
-
-  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
-  
-  
-  
-  <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/12/28/写在前面/">
-
-    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="DevHuangjb">
-      <meta itemprop="description" content="">
-      <meta itemprop="image" content="/images/avatar.gif">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="黄锦标的博客">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h1 class="post-title" itemprop="name headline">
-                
-                <a class="post-title-link" href="/2018/12/28/写在前面/" itemprop="url">写在前面</a></h1>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">Posted on</span>
-              
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-12-28T14:57:59+08:00">
-                2018-12-28
-              </time>
-            
-
-            
-
-            
-          </span>
-
-          
-            <span class="post-category">
-            
-              <span class="post-meta-divider">|</span>
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">In</span>
-              
-              
-                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
-                  <a href="/categories/diary/" itemprop="url" rel="index">
-                    <span itemprop="name">diary</span>
-                  </a>
-                </span>
-
-                
-                
-              
-            </span>
-          
-
-          
-            
-          
-
-          
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          
-            <p><strong>2018年12月28日了。</strong></p>
-<p>转眼间又快到跨年的时候了。。</p>
-<p><strong>为什么写博客？</strong></p>
-<p>其实这个念头已经藏了一两年了。无奈迫于精力（其实主要是因为懒）一直搁置到现在。</p>
-<p>2015年接触iOS开发以来，为了效率开发笔记一直都是依靠有道云笔记。这让我有点闭门造车的感觉，所以我打算把笔记整理一下发到博客上来。</p>
-<p>以前拜读YYKit作者<a href="https://blog.ibireme.com/" target="_blank" rel="noopener">郭耀源的博客</a>只是看一些技术类的文章。前段时间无意翻到作者2010年发布的日记，其中作者在调通iPhone真机调试后说了一句话“看看我以后还有兴趣的话就继续学一下了~谁知道呢。。。”  谁知道呢？后来YYKit能收到这么大的反响。YYKit的成功让我觉得这句话很有意思。</p>
-<p>人生充满未知数，仅以本博客记录点滴。</p>
-
-          
-        
-      
-    </div>
-    
-    
-    
-
-    
-
-    
-
-    
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </div>
-  
-  
-  
-  </article>
-
-
-    
   </section>
 
   
+  <nav class="pagination">
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="extend next" rel="next" href="/page/2/"><i class="fa fa-angle-right"></i></a>
+  </nav>
+
 
 
           </div>
@@ -2203,7 +2351,7 @@
               
                 <a href="/archives">
               
-                  <span class="site-state-item-count">10</span>
+                  <span class="site-state-item-count">13</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>

@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="黄锦标的博客">
 <meta property="og:description" content="首先，安利一个facebook的调试神器： Chisel 。Xcode动态调试原理：首先来了解几个术语：GCC，LLVM，GDB，LLDB：GCC和GDB属于编译器，LLVM和LLDB属于调试器  Xcode编译器的发展历程：GCC —&amp;gt; LLVM Xcode调试器的发展历程：GDB —&amp;gt; LLDB  当Xcode识别到手机设备后，会自动将debugserver安装到iPhone上面：">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2019-03-14T06:30:36.044Z">
+<meta property="og:updated_time" content="2019-03-31T06:13:04.525Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="iOS开发之：动态调试">
 <meta name="twitter:description" content="首先，安利一个facebook的调试神器： Chisel 。Xcode动态调试原理：首先来了解几个术语：GCC，LLVM，GDB，LLDB：GCC和GDB属于编译器，LLVM和LLDB属于调试器  Xcode编译器的发展历程：GCC —&amp;gt; LLVM Xcode调试器的发展历程：GDB —&amp;gt; LLDB  当Xcode识别到手机设备后，会自动将debugserver安装到iPhone上面：">
@@ -404,6 +404,21 @@
 </li>
 </ul>
 <p>更多的lldb命令请参考官方文档：<a href="http://lldb.llvm.org/lldb-gdb.html" target="_blank" rel="noopener">文档</a></p>
+<h3 id="lldb汇编层面常用调试命令"><a href="#lldb汇编层面常用调试命令" class="headerlink" title="lldb汇编层面常用调试命令"></a>lldb汇编层面常用调试命令</h3><ul>
+<li><p>register read 读取所以寄存器的值</p>
+</li>
+<li><p>register write w0 0x8 把值写进寄存器</p>
+</li>
+<li><p>x命令读取内存内容</p>
+<p>命令格式：x/nfu obj</p>
+<p>n：代表要读取几个单元</p>
+<p>f：显示方式，有如下值</p>
+<p>| 参数 | 含义                       |<br>| —- | ————————– |<br>| x    | 按十六进制格式显示变量     |<br>| d    | 按十进制格式显示变量       |<br>| u    | 按十进制格式显示无符号整型 |<br>| o    | 按八进制格式显示变量       |<br>| t    | 按二进制格式显示变量       |<br>| a    | 按十六进制格式显示变量     |<br>| i    | 指令地址格式               |<br>| c    | 按字符格式显示变量         |<br>| f    | 按浮点数格式显示变量       |</p>
+<p>u：表示一个单元的长度</p>
+<p>| 参数 | 含义             |<br>| —- | —————- |<br>| b    | 按单字节分段输出 |<br>| h    | 按双字节分段输出 |<br>| w    | 按四字节分段输出 |<br>| g    | 按八字节分段输出 |</p>
+<p>obj：表示内存地址，可以是变量名，也可以是内存地址。</p>
+</li>
+</ul>
 <h3 id="Chisel"><a href="#Chisel" class="headerlink" title="Chisel"></a>Chisel</h3><p>Chisel是facebook开源的辅助动态调试iOS APP的LLDB命令集合。详细文档参考 <a href="https://github.com/facebook/chisel/wiki" target="_blank" rel="noopener">github wiki</a></p>
 <p>下面我举几个比较常用：</p>
 <ul>
@@ -566,7 +581,7 @@
               
                 <a href="/archives">
               
-                  <span class="site-state-item-count">10</span>
+                  <span class="site-state-item-count">13</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
@@ -637,7 +652,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#首先，安利一个facebook的调试神器：-Chisel-。"><span class="nav-number">1.</span> <span class="nav-text">首先，安利一个facebook的调试神器： Chisel 。</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Xcode动态调试原理："><span class="nav-number">2.</span> <span class="nav-text">Xcode动态调试原理：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#LLDB常用命令："><span class="nav-number">3.</span> <span class="nav-text">LLDB常用命令：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Chisel"><span class="nav-number">4.</span> <span class="nav-text">Chisel</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#首先，安利一个facebook的调试神器：-Chisel-。"><span class="nav-number">1.</span> <span class="nav-text">首先，安利一个facebook的调试神器： Chisel 。</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Xcode动态调试原理："><span class="nav-number">2.</span> <span class="nav-text">Xcode动态调试原理：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#LLDB常用命令："><span class="nav-number">3.</span> <span class="nav-text">LLDB常用命令：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#lldb汇编层面常用调试命令"><span class="nav-number">4.</span> <span class="nav-text">lldb汇编层面常用调试命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Chisel"><span class="nav-number">5.</span> <span class="nav-text">Chisel</span></a></li></ol></div>
             
 
           </div>

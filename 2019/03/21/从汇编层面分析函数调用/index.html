@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="iOS底层原理,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="这篇文章将探讨：  函数调用如何返回 函数返回值底层实现 函数参数传递底层实现 函数调用堆栈平衡  你需要知道：  pc：程序计数器，记录当前执行的代码地址，对其赋值会跳转到对应的地址执行 lr (r30)：连接寄存器，当执行ret指令时，lr寄存器的值会赋给pc寄存器 fp (r29)：frame point寄存器，用来保存栈底指针 sp：stack point寄存器，用来保存栈顶指针 通用寄存">
+<meta name="keywords" content="iOS底层原理">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从汇编层面分析函数调用">
+<meta property="og:url" content="http://yoursite.com/2019/03/21/从汇编层面分析函数调用/index.html">
+<meta property="og:site_name" content="黄锦标的博客">
+<meta property="og:description" content="这篇文章将探讨：  函数调用如何返回 函数返回值底层实现 函数参数传递底层实现 函数调用堆栈平衡  你需要知道：  pc：程序计数器，记录当前执行的代码地址，对其赋值会跳转到对应的地址执行 lr (r30)：连接寄存器，当执行ret指令时，lr寄存器的值会赋给pc寄存器 fp (r29)：frame point寄存器，用来保存栈底指针 sp：stack point寄存器，用来保存栈顶指针 通用寄存">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-03-31T16:20:35.902Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="从汇编层面分析函数调用">
+<meta name="twitter:description" content="这篇文章将探讨：  函数调用如何返回 函数返回值底层实现 函数参数传递底层实现 函数调用堆栈平衡  你需要知道：  pc：程序计数器，记录当前执行的代码地址，对其赋值会跳转到对应的地址执行 lr (r30)：连接寄存器，当执行ret指令时，lr寄存器的值会赋给pc寄存器 fp (r29)：frame point寄存器，用来保存栈底指针 sp：stack point寄存器，用来保存栈顶指针 通用寄存">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2019/03/21/从汇编层面分析函数调用/">
+
+
+
+
+
+  <title>从汇编层面分析函数调用 | 黄锦标的博客</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">黄锦标的博客</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">记录学习点滴，好记性 < 烂笔头！</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-首页">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-ios">
+          <a href="/categories/iOS/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-apple"></i> <br>
+            
+            iOS
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-日常">
+          <a href="/categories/diary/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-calendar"></i> <br>
+            
+            日常
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-标签">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-归档">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/03/21/从汇编层面分析函数调用/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="DevHuangjb">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="黄锦标的博客">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">从汇编层面分析函数调用</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-03-21T17:30:53+08:00">
+                2019-03-21
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/iOS/" itemprop="url" rel="index">
+                    <span itemprop="name">iOS</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>这篇文章将探讨：</p>
+<ul>
+<li>函数调用如何返回</li>
+<li>函数返回值底层实现</li>
+<li>函数参数传递底层实现</li>
+<li>函数调用堆栈平衡</li>
+</ul>
+<p>你需要知道：</p>
+<ul>
+<li>pc：程序计数器，记录当前执行的代码地址，对其赋值会跳转到对应的地址执行</li>
+<li>lr (r30)：连接寄存器，当执行ret指令时，lr寄存器的值会赋给pc寄存器</li>
+<li>fp (r29)：frame point寄存器，用来保存栈底指针</li>
+<li>sp：stack point寄存器，用来保存栈顶指针</li>
+<li>通用寄存器r0-r7作为函数调用的参数传递，如果参数大于8个就用栈空间来辅助</li>
+<li>通用寄存器r0通常作为函数返回值的中转站</li>
+</ul>
+<h4 id="函数调用如何返回？"><a href="#函数调用如何返回？" class="headerlink" title="函数调用如何返回？"></a>函数调用如何返回？</h4><p>写一个最简单的没有传递参数，没有返回值的函数</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">#import &lt;Foundation/Foundation.h&gt;</span><br><span class="line"></span><br><span class="line">void test()&#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    </span><br><span class="line">    test();</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来看看这个简单调用在汇编层面的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">    0x10000e920 &lt;+0&gt;:  sub    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x10000e924 &lt;+4&gt;:  stp    x29, x30, [sp, #0x10]</span><br><span class="line">    0x10000e928 &lt;+8&gt;:  add    x29, sp, #0x10            ; =0x10 </span><br><span class="line">    0x10000e92c &lt;+12&gt;: stur   wzr, [x29, #-0x4]</span><br><span class="line">    0x10000e930 &lt;+16&gt;: str    w0, [sp, #0x8]</span><br><span class="line">    0x10000e934 &lt;+20&gt;: str    x1, [sp]</span><br><span class="line">    </span><br><span class="line">-&gt;  0x10000e938 &lt;+24&gt;: bl     0x10000e91c               ; test at main.m:12</span><br><span class="line">    0x10000e93c &lt;+28&gt;: mov    w0, #0x0</span><br><span class="line">    </span><br><span class="line">    0x10000e940 &lt;+32&gt;: ldp    x29, x30, [sp, #0x10]</span><br><span class="line">    0x10000e944 &lt;+36&gt;: add    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x10000e948 &lt;+40&gt;: ret    </span><br><span class="line">    </span><br><span class="line">TestStack`test:</span><br><span class="line">-&gt;  0x10008691c &lt;+0&gt;: ret </span><br><span class="line"></span><br><span class="line"> ********************分析***********************</span><br><span class="line"> 把断点打在‘bl 0x10000e91c’</span><br><span class="line"> (lldb) register read</span><br><span class="line">        lr = 0x00000001993968b8  libdyld.dylib`start + 4</span><br><span class="line">        pc = 0x00000001000f6938  TestStack`main + 24 at main.m:16</span><br><span class="line"> (lldb) si</span><br><span class="line"> (lldb) register read</span><br><span class="line">General Purpose Registers:</span><br><span class="line">        lr = 0x00000001000f693c  TestStack`main + 28 at main.m:16</span><br><span class="line">        pc = 0x00000001000f691c  TestStack`test at main.m:12</span><br><span class="line"> </span><br><span class="line"> 可以看出执行‘bl 0x10000e91c’后，pc寄存器被赋值0x00000001000f691c,程序跳转到test函数执行</span><br><span class="line"> lr寄存器被赋值0x00000001000f693c，而这个地址正好是main函数里面‘bl 0x10000e91c’的下一条指令</span><br><span class="line"> 所以在test函数里面执行ret指令后，lr寄存器的值赋给pc寄存器实现函数调用的返回。</span><br></pre></td></tr></table></figure>
+<h4 id="函数如何把返回值返回给调用者？"><a href="#函数如何把返回值返回给调用者？" class="headerlink" title="函数如何把返回值返回给调用者？"></a>函数如何把返回值返回给调用者？</h4><p>改一下test函数，让它简单的返回一个值，比如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">int test()&#123;</span><br><span class="line">    return 10;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    int result = test();</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来看看在汇编层面的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">    0x100076918 &lt;+0&gt;:  sub    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x10007691c &lt;+4&gt;:  stp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x100076920 &lt;+8&gt;:  add    x29, sp, #0x20            ; =0x20 </span><br><span class="line">    0x100076924 &lt;+12&gt;: stur   wzr, [x29, #-0x4]</span><br><span class="line">    0x100076928 &lt;+16&gt;: stur   w0, [x29, #-0x8]</span><br><span class="line">    0x10007692c &lt;+20&gt;: str    x1, [sp, #0x10]</span><br><span class="line">    </span><br><span class="line">-&gt;  0x100076930 &lt;+24&gt;: bl     0x100076910               ; test at main.m:11</span><br><span class="line">    0x100076934 &lt;+28&gt;: mov    w8, #0x0</span><br><span class="line">    0x100076938 &lt;+32&gt;: str    w0, [sp, #0xc]</span><br><span class="line">    0x10007693c &lt;+36&gt;: mov    x0, x8</span><br><span class="line">    </span><br><span class="line">    0x100076940 &lt;+40&gt;: ldp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x100076944 &lt;+44&gt;: add    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x100076948 &lt;+48&gt;: ret    </span><br><span class="line">    </span><br><span class="line">TestStack`test:</span><br><span class="line">-&gt;  0x100076910 &lt;+0&gt;: mov    w0, #0xa</span><br><span class="line">    0x100076914 &lt;+4&gt;: ret   </span><br><span class="line">    </span><br><span class="line">********************分析***********************</span><br><span class="line">我们在test函数里面简单的返回了10</span><br><span class="line">在汇编层面，‘mov w0, #0xa’把0xa赋值给x0寄存器的低32位</span><br><span class="line">在子程序执行返回后，调用函数通过读取x0寄存器的值拿到子程序的返回值，比如main函数里面‘str w0, [sp, #0xc]’就是把w0寄存器的值赋给局部变量</span><br></pre></td></tr></table></figure>
+<h4 id="函数如何实现参数的传递？"><a href="#函数如何实现参数的传递？" class="headerlink" title="函数如何实现参数的传递？"></a>函数如何实现参数的传递？</h4><p>再一次修改test函数如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">void test(int para1, int para2, int para3, int para4, int para5, int para6, int para7, int para8, int para9)&#123;</span><br><span class="line">    int a = 8;</span><br><span class="line">    a = a + para1 + para2 + para3 + para4 + para5 + para6 + para7 + para8 + para9;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    test(1,2,3,4,5,6,7,8,9);</span><br><span class="line">    return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>接下来看看在汇编层面的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">    0x1000be8ec &lt;+0&gt;:  sub    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x1000be8f0 &lt;+4&gt;:  stp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x1000be8f4 &lt;+8&gt;:  add    x29, sp, #0x20            ; =0x20 </span><br><span class="line">    0x1000be8f8 &lt;+12&gt;: orr    w8, wzr, #0x1							;1赋给r8</span><br><span class="line">    0x1000be8fc &lt;+16&gt;: orr    w9, wzr, #0x2							;2赋给r9</span><br><span class="line">    0x1000be900 &lt;+20&gt;: orr    w2, wzr, #0x3							;3赋给r2</span><br><span class="line">    0x1000be904 &lt;+24&gt;: orr    w3, wzr, #0x4							;4赋给r3</span><br><span class="line">    0x1000be908 &lt;+28&gt;: mov    w4, #0x5									;5赋给r4</span><br><span class="line">    0x1000be90c &lt;+32&gt;: orr    w5, wzr, #0x6							;6赋给r5</span><br><span class="line">    0x1000be910 &lt;+36&gt;: orr    w6, wzr, #0x7							;7赋给r6</span><br><span class="line">    0x1000be914 &lt;+40&gt;: orr    w7, wzr, #0x8							;8赋给r7</span><br><span class="line">    0x1000be918 &lt;+44&gt;: mov    w10, #0x9									;9赋给r10</span><br><span class="line">    0x1000be91c &lt;+48&gt;: stur   wzr, [x29, #-0x4]</span><br><span class="line">    0x1000be920 &lt;+52&gt;: stur   w0, [x29, #-0x8]</span><br><span class="line">    0x1000be924 &lt;+56&gt;: str    x1, [sp, #0x10]</span><br><span class="line">    0x1000be928 &lt;+60&gt;: mov    x0, x8										;r8(值为1)赋给r0</span><br><span class="line">    0x1000be92c &lt;+64&gt;: mov    x1, x9										;r8(值为2)赋给r0</span><br><span class="line">    0x1000be930 &lt;+68&gt;: str    w10, [sp]									;把r10(值为9)的值入栈，</span><br><span class="line">    ;在跳转到test函数前：r0-r7响应的被复制1-8，</span><br><span class="line">    0x1000be934 &lt;+72&gt;: bl     0x1000be860               ; test at main.m:11</span><br><span class="line">    0x1000be938 &lt;+76&gt;: mov    w8, #0x0</span><br><span class="line">    0x1000be93c &lt;+80&gt;: mov    x0, x8</span><br><span class="line">    0x1000be940 &lt;+84&gt;: ldp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x1000be944 &lt;+88&gt;: add    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x1000be948 &lt;+92&gt;: ret  </span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">TestStack`test:</span><br><span class="line">    0x1000be860 &lt;+0&gt;:   sub    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x1000be864 &lt;+4&gt;:   ldr    w8, [sp, #0x30]			;main函数把para9入栈，这里把para9的值从栈空间读出来赋给r8			</span><br><span class="line">-&gt;  0x1000be868 &lt;+8&gt;:   orr    w9, wzr, #0x8        ;局部变量‘a=8’，r9=8</span><br><span class="line">    0x1000be86c &lt;+12&gt;:  str    w0, [sp, #0x2c]			;r0(para1)的值入栈</span><br><span class="line">    0x1000be870 &lt;+16&gt;:  str    w1, [sp, #0x28]			;r1(para2)的值入栈</span><br><span class="line">    0x1000be874 &lt;+20&gt;:  str    w2, [sp, #0x24]			;r2(para3)的值入栈</span><br><span class="line">    0x1000be878 &lt;+24&gt;:  str    w3, [sp, #0x20]			;r3(para4)的值入栈</span><br><span class="line">    0x1000be87c &lt;+28&gt;:  str    w4, [sp, #0x1c]			;r4(para5)的值入栈</span><br><span class="line">    0x1000be880 &lt;+32&gt;:  str    w5, [sp, #0x18]			;r5(para6)的值入栈</span><br><span class="line">    0x1000be884 &lt;+36&gt;:  str    w6, [sp, #0x14]			;r5(para7)的值入栈</span><br><span class="line">    0x1000be888 &lt;+40&gt;:  str    w7, [sp, #0x10]			;r7(para8)的值入栈</span><br><span class="line">    0x1000be88c &lt;+44&gt;:  str    w9, [sp, #0xc]				;局部变量a入栈</span><br><span class="line">    0x1000be890 &lt;+48&gt;:  ldr    w9, [sp, #0xc]				;从栈空间取出局部变量的值</span><br><span class="line">    0x1000be894 &lt;+52&gt;:  ldr    w0, [sp, #0x2c]			;从栈空间取出para1的值</span><br><span class="line">    0x1000be898 &lt;+56&gt;:  add    w9, w9, w0						;加法运算：局部变量a = a + para1</span><br><span class="line">    0x1000be89c &lt;+60&gt;:  ldr    w0, [sp, #0x28]			;从栈空间取出para2的值</span><br><span class="line">    0x1000be8a0 &lt;+64&gt;:  add    w9, w9, w0						;加法运算：局部变量a = a + para2</span><br><span class="line">    0x1000be8a4 &lt;+68&gt;:  ldr    w0, [sp, #0x24]			;......以下操作一样</span><br><span class="line">    0x1000be8a8 &lt;+72&gt;:  add    w9, w9, w0</span><br><span class="line">    0x1000be8ac &lt;+76&gt;:  ldr    w0, [sp, #0x20]</span><br><span class="line">    0x1000be8b0 &lt;+80&gt;:  add    w9, w9, w0</span><br><span class="line">    0x1000be8b4 &lt;+84&gt;:  ldr    w0, [sp, #0x1c]</span><br><span class="line">    0x1000be8b8 &lt;+88&gt;:  add    w9, w9, w0</span><br><span class="line">    0x1000be8bc &lt;+92&gt;:  ldr    w0, [sp, #0x18]</span><br><span class="line">    0x1000be8c0 &lt;+96&gt;:  add    w9, w9, w0</span><br><span class="line">    0x1000be8c4 &lt;+100&gt;: ldr    w0, [sp, #0x14]</span><br><span class="line">    0x1000be8c8 &lt;+104&gt;: add    w9, w9, w0</span><br><span class="line">    0x1000be8cc &lt;+108&gt;: ldr    w0, [sp, #0x10]</span><br><span class="line">    0x1000be8d0 &lt;+112&gt;: add    w9, w9, w0</span><br><span class="line">    0x1000be8d4 &lt;+116&gt;: ldr    w0, [sp, #0x30]</span><br><span class="line">    0x1000be8d8 &lt;+120&gt;: add    w9, w9, w0</span><br><span class="line">    0x1000be8dc &lt;+124&gt;: str    w9, [sp, #0xc]</span><br><span class="line">    0x1000be8e0 &lt;+128&gt;: str    w8, [sp, #0x8]</span><br><span class="line">    0x1000be8e4 &lt;+132&gt;: add    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x1000be8e8 &lt;+136&gt;: ret     </span><br><span class="line">    </span><br><span class="line">********************分析***********************</span><br><span class="line">从上面的分析过程可以看出，函数参数首先会使用通用寄存器r0-r7，当传递的参数超过8个的时候，会借助函数的栈空间来辅助实现参数的传递</span><br></pre></td></tr></table></figure>
+<h4 id="函数调用的堆栈平衡？"><a href="#函数调用的堆栈平衡？" class="headerlink" title="函数调用的堆栈平衡？"></a>函数调用的堆栈平衡？</h4><p>我们知道，函数调用的时候，系统会为该函数分配一个栈空间，在函数执行结束后栈空间会被系统回收。那么，系统底层是如何实现这个机制的呢？</p>
+<p>函数根据是否调用子函数分为：</p>
+<ul>
+<li>叶子函数(没有调用其他子函数)</li>
+<li>非叶子函数(有调用其他子函数)</li>
+</ul>
+<h5 id="先来分析下叶子函数的堆栈平衡"><a href="#先来分析下叶子函数的堆栈平衡" class="headerlink" title="先来分析下叶子函数的堆栈平衡"></a>先来分析下叶子函数的堆栈平衡</h5><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">int sum (int a, int b) &#123;</span><br><span class="line">    return a+b;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    int result = sum(4, 5);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>汇编：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">    0x100062910 &lt;+0&gt;:  sub    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x100062914 &lt;+4&gt;:  stp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x100062918 &lt;+8&gt;:  add    x29, sp, #0x20            ; =0x20 </span><br><span class="line">    0x10006291c &lt;+12&gt;: orr    w8, wzr, #0x4</span><br><span class="line">    0x100062920 &lt;+16&gt;: mov    w9, #0x5</span><br><span class="line">    0x100062924 &lt;+20&gt;: stur   w0, [x29, #-0x4]</span><br><span class="line">    0x100062928 &lt;+24&gt;: str    x1, [sp, #0x10]</span><br><span class="line">    0x10006292c &lt;+28&gt;: mov    x0, x8</span><br><span class="line">    0x100062930 &lt;+32&gt;: mov    x1, x9</span><br><span class="line">    0x100062934 &lt;+36&gt;: bl     0x1000628f0               ; sum at main.m:11</span><br><span class="line">    0x100062938 &lt;+40&gt;: mov    w8, #0x0</span><br><span class="line">    0x10006293c &lt;+44&gt;: str    w0, [sp, #0xc]</span><br><span class="line">    0x100062940 &lt;+48&gt;: mov    x0, x8</span><br><span class="line">    0x100062944 &lt;+52&gt;: ldp    x29, x30, [sp, #0x20]</span><br><span class="line">    0x100062948 &lt;+56&gt;: add    sp, sp, #0x30             ; =0x30 </span><br><span class="line">    0x10006294c &lt;+60&gt;: ret   </span><br><span class="line">    </span><br><span class="line">TestStack`sum:</span><br><span class="line">		;sp = sp - 0x10，栈顶指针下移16个内存单元，也就是系统为sum函数开辟了16个字节的栈空间大小</span><br><span class="line">-&gt;  0x1000628f0 &lt;+0&gt;:  sub    sp, sp, #0x10         </span><br><span class="line">		;w0存的是函数参数‘int a’,下面把参数a 入栈</span><br><span class="line">    0x1000628f4 &lt;+4&gt;:  str    w0, [sp, #0xc]</span><br><span class="line">    ;w1存的是函数参数‘int b’,下面把参数b 入栈</span><br><span class="line">    0x1000628f8 &lt;+8&gt;:  str    w1, [sp, #0x8]</span><br><span class="line">    ;从栈空间中读出参数a的值，赋给w0</span><br><span class="line">    0x1000628fc &lt;+12&gt;: ldr    w0, [sp, #0xc]</span><br><span class="line">    ;从栈空间中读出参数b的值，赋给w1</span><br><span class="line">    0x100062900 &lt;+16&gt;: ldr    w1, [sp, #0x8]</span><br><span class="line">    ;w0 = a + b，函数返回，外部函数通过w0拿到计算值</span><br><span class="line">    0x100062904 &lt;+20&gt;: add    w0, w0, w1</span><br><span class="line">    ;栈顶指针上移16个内存单元，栈空间实现平衡。刚进入sum函数开辟的16个字节的栈空间被回收(看上去像是被回收，实际只是上移了栈顶指针，内存内容依旧存在，等到后面其他函数的栈空间分配时才会对这段栈空间内存进行设置)</span><br><span class="line">    0x100062908 &lt;+24&gt;: add    sp, sp, #0x10             ; =0x10 </span><br><span class="line">    0x10006290c &lt;+28&gt;: ret</span><br></pre></td></tr></table></figure>
+<p>再来看看非叶子函数如何实现堆栈平衡</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">int sum (int a, int b) &#123;</span><br><span class="line">    return a+b;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">void test (int a, int b) &#123;</span><br><span class="line">    int c = sum(a, b);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    test(4, 6);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>汇编：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line">TestStack`main:</span><br><span class="line">		;register read读取main函数进来后:</span><br><span class="line">		;fp = 0x000000016fdf79e0</span><br><span class="line">		;sp = 0x000000016fdf79d0</span><br><span class="line">    0x100076914 &lt;+0&gt;:  sub    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x100076918 &lt;+4&gt;:  stp    x29, x30, [sp, #0x10]</span><br><span class="line">    0x10007691c &lt;+8&gt;:  add    x29, sp, #0x10            ; =0x10 </span><br><span class="line">    0x100076920 &lt;+12&gt;: orr    w8, wzr, #0x4</span><br><span class="line">    0x100076924 &lt;+16&gt;: orr    w9, wzr, #0x6</span><br><span class="line">    0x100076928 &lt;+20&gt;: stur   w0, [x29, #-0x4]</span><br><span class="line">    0x10007692c &lt;+24&gt;: str    x1, [sp]</span><br><span class="line">    0x100076930 &lt;+28&gt;: mov    x0, x8</span><br><span class="line">    0x100076934 &lt;+32&gt;: mov    x1, x9</span><br><span class="line">    0x100076938 &lt;+36&gt;: bl     0x1000768e4               ; test at main.m:15</span><br><span class="line">    0x10007693c &lt;+40&gt;: mov    w8, #0x0</span><br><span class="line">    0x100076940 &lt;+44&gt;: mov    x0, x8</span><br><span class="line">    0x100076944 &lt;+48&gt;: ldp    x29, x30, [sp, #0x10]</span><br><span class="line">    0x100076948 &lt;+52&gt;: add    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x10007694c &lt;+56&gt;: ret  </span><br><span class="line">    </span><br><span class="line">TestStack`test:</span><br><span class="line">		;fp = 0x000000016fdf79e0</span><br><span class="line">		;sp = sp - 0x20 = 0x000000016fdf79b0</span><br><span class="line">    0x1000768e4 &lt;+0&gt;:  sub    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    ;现场保护，把main函数执行时的fp(x29),lr(x30)入栈保存：这两个寄存器关系到main函数执行时的栈底指针和main函数执行后的返回地址，很重要</span><br><span class="line">-&gt;  0x1000768e8 &lt;+4&gt;:  stp    x29, x30, [sp, #0x10]</span><br><span class="line">		;设置自己的fp(栈底指针)</span><br><span class="line">    0x1000768ec &lt;+8&gt;:  add    x29, sp, #0x10            ; =0x10 </span><br><span class="line">    0x1000768f0 &lt;+12&gt;: stur   w0, [x29, #-0x4]</span><br><span class="line">    0x1000768f4 &lt;+16&gt;: str    w1, [sp, #0x8]</span><br><span class="line">    0x1000768f8 &lt;+20&gt;: ldur   w0, [x29, #-0x4]</span><br><span class="line">    0x1000768fc &lt;+24&gt;: ldr    w1, [sp, #0x8]</span><br><span class="line">    ;跳转到sum函数</span><br><span class="line">    0x100076900 &lt;+28&gt;: bl     0x1000768c4               ; sum at main.m:11</span><br><span class="line">    ;sum函数把返回值放在r0寄存器，这边把返回值赋给局部变量‘int c’</span><br><span class="line">    0x100076904 &lt;+32&gt;: str    w0, [sp, #0x4]</span><br><span class="line">    ;恢复现场，把入栈保存的main函数fp,lr指针出栈恢复</span><br><span class="line">    0x100076908 &lt;+36&gt;: ldp    x29, x30, [sp, #0x10]</span><br><span class="line">    ;栈顶指针上移32个内存单元，栈空间实现平衡。</span><br><span class="line">    0x10007690c &lt;+40&gt;: add    sp, sp, #0x20             ; =0x20 </span><br><span class="line">    0x100076910 &lt;+44&gt;: ret   </span><br><span class="line">    </span><br><span class="line">TestStack`sum:</span><br><span class="line">-&gt;  0x1000768c4 &lt;+0&gt;:  sub    sp, sp, #0x10             ; =0x10 </span><br><span class="line">    0x1000768c8 &lt;+4&gt;:  str    w0, [sp, #0xc]</span><br><span class="line">    0x1000768cc &lt;+8&gt;:  str    w1, [sp, #0x8]</span><br><span class="line">    0x1000768d0 &lt;+12&gt;: ldr    w0, [sp, #0xc]</span><br><span class="line">    0x1000768d4 &lt;+16&gt;: ldr    w1, [sp, #0x8]</span><br><span class="line">    0x1000768d8 &lt;+20&gt;: add    w0, w0, w1</span><br><span class="line">    0x1000768dc &lt;+24&gt;: add    sp, sp, #0x10             ; =0x10 </span><br><span class="line">    0x1000768e0 &lt;+28&gt;: ret</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/iOS底层原理/" rel="tag"># iOS底层原理</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/03/20/记一个安装Charles证书的大坑/" rel="next" title="记一个安装Charles证书的大坑~">
+                <i class="fa fa-chevron-left"></i> 记一个安装Charles证书的大坑~
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2019/03/28/arm64汇编简单笔记/" rel="prev" title="arm64汇编简单笔记">
+                arm64汇编简单笔记 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/avatar.gif" alt="DevHuangjb">
+            
+              <p class="site-author-name" itemprop="name">DevHuangjb</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives">
+              
+                  <span class="site-state-item-count">13</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/DevHuangjb" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="https://www.jianshu.com/u/ba146c0c3280" target="_blank" title="简书">
+                      
+                        <i class="fa fa-fw fa-globe"></i>简书</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#函数调用如何返回？"><span class="nav-number">1.</span> <span class="nav-text">函数调用如何返回？</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#函数如何把返回值返回给调用者？"><span class="nav-number">2.</span> <span class="nav-text">函数如何把返回值返回给调用者？</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#函数如何实现参数的传递？"><span class="nav-number">3.</span> <span class="nav-text">函数如何实现参数的传递？</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#函数调用的堆栈平衡？"><span class="nav-number">4.</span> <span class="nav-text">函数调用的堆栈平衡？</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#先来分析下叶子函数的堆栈平衡"><span class="nav-number">4.1.</span> <span class="nav-text">先来分析下叶子函数的堆栈平衡</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">DevHuangjb</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Pisces</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
